@@ -1,0 +1,7 @@
+날짜,출발,도착,운행사,열차번호,출발시간,도착시간,소요시간,좌석,예약번호,상태,메모
+2026-03-03,피렌체 SMN,나폴리 중앙,Trenitalia Frecciarossa,FR 9518,07:30,10:50,3h20m,"2등석 Quiet Car",PNR-FRX303,booked,노마드 트래블 픽업 연계
+2026-03-04,나폴리 중앙,로마 테르미니,Trenitalia Frecciarossa,FR 9642,18:00,20:05,2h05m,2등석,PNR-ROM804,planned,로마 복귀 (20:00 도착)
+2026-03-05,로마 테르미니,베네치아 S. Lucia,Frecciarossa,FR 9408,09:10,12:40,3h30m,"비즈니스 좌석, 창가",PNR-VCE305,planned,산 마르코 야경 맞춰 도착
+2026-03-06,베네치아 S. Lucia,베로나 P. Nuova,Regionale Veloce,RV 2232,07:52,09:12,1h20m,자유석,DAYPASS,planned,베로나·시르미오네 당일치기
+2026-03-08,베네치아 S. Lucia,피렌체 SMN,Italo,Italo 9935,09:45,11:45,2h00m,Smart 클래스,IT-PIA808,planned,피렌체 쇼핑 일정 시작
+2026-03-11,피렌체 SMN,로마 테르미니,Frecciarossa,FR 9544,16:10,18:05,1h55m,Premium,PNR-ROM311,planned,마지막 로마 쇼핑 투어
