@@ -1,7 +1,21 @@
 import type {
   Day, TripItem, AccommodationCandidate, ShoppingItem, ChecklistItem,
-  FlightLeg, FlightInfo, TransportBooking, MemoNote,
+  FlightLeg, FlightInfo, TransportBooking, MemoNote, LocalTour,
 } from '../types';
+
+/** "2026.3.3." 또는 "2026.03.03" → "2026-03-03" */
+function normalizeDateStr(d: string): string {
+  if (!d) return '';
+  const s = d.trim().replace(/\.\s*$/, '');
+  if (s.includes('.')) {
+    const parts = s.split('.');
+    if (parts.length === 3) {
+      const [y, m, day] = parts;
+      return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+  return s;
+}
 
 const SCRIPT_URL_KEY = 'travel_google_script_url';
 const DISABLED_MARK = '__DISABLED__';
@@ -252,8 +266,8 @@ export function sheetDataToAccommodations(rows: Record<string, string>[]): Accom
     id: `acc-import-${Date.now()}-${i}`,
     name: String(row['이름']),
     city: String(row['위치'] || ''),
-    checkIn: String(row['체크인'] || '') || undefined,
-    checkOut: String(row['체크아웃'] || '') || undefined,
+    checkIn: normalizeDateStr(String(row['체크인'] || '')) || undefined,
+    checkOut: normalizeDateStr(String(row['체크아웃'] || '')) || undefined,
     memo: String(row['메모'] || '') || undefined,
     isBooked: String(row['예약상태']) === '예약완료',
     createdAt: new Date(),
@@ -366,4 +380,82 @@ export function sheetDataToMemos(rows: Record<string, string>[]): MemoNote[] {
     memo: String(row['메모'] || '') || undefined,
     createdAt: new Date(),
   }));
+}
+
+// ── [현지투어] 이름, 날짜, 기간, 업체, 집합장소, 집합시간, 예약번호, 가격, 메모, 상태 ──
+
+const LOCAL_TOUR_HEADERS = ['이름', '날짜', '기간', '업체', '집합장소', '집합시간', '예약번호', '가격', '메모', '상태'];
+
+export function localToursToSheetData(items: LocalTour[]) {
+  const rows = items.map(item => [
+    item.name,
+    item.date,
+    item.duration || '',
+    item.provider || '',
+    item.meetingPoint || '',
+    item.meetingTime || '',
+    item.reservationCode || '',
+    item.price || '',
+    item.memo || '',
+    item.status,
+  ]);
+  return { headers: LOCAL_TOUR_HEADERS, rows };
+}
+
+export function sheetDataToLocalTours(rows: Record<string, string>[]): LocalTour[] {
+  return rows.filter(r => r['이름']).map((row, i) => ({
+    id: `lt-import-${Date.now()}-${i}`,
+    name: String(row['이름']),
+    date: String(row['날짜'] || ''),
+    duration: String(row['기간'] || '') || undefined,
+    provider: String(row['업체'] || '') || undefined,
+    meetingPoint: String(row['집합장소'] || '') || undefined,
+    meetingTime: String(row['집합시간'] || '') || undefined,
+    reservationCode: String(row['예약번호'] || '') || undefined,
+    price: String(row['가격'] || '') || undefined,
+    memo: String(row['메모'] || '') || undefined,
+    status: (String(row['상태'] || 'planned') as LocalTour['status']),
+    createdAt: new Date(),
+  }));
+}
+
+// ── [여행준비] 전체 카테고리 통합 뷰 (카테고리, 이름, 날짜/도시, 세부정보, 메모, 상태) ──
+
+const TRAVEL_POOL_HEADERS = ['카테고리', '이름', '날짜/도시', '세부정보', '메모', '상태'];
+
+export function travelPoolToSheetData(
+  localTours: LocalTour[],
+  accommodations: AccommodationCandidate[],
+  shopping: ShoppingItem[],
+  transport: TransportBooking[],
+  memos: MemoNote[],
+) {
+  const rows: string[][] = [
+    ...localTours.map(t => [
+      '현지투어', t.name, t.date,
+      [t.provider, t.meetingPoint, t.meetingTime].filter(Boolean).join(' · '),
+      t.memo || '', t.status,
+    ]),
+    ...accommodations.map(a => [
+      '숙소', a.name,
+      [a.city, a.checkIn && a.checkOut ? `${a.checkIn}~${a.checkOut}` : ''].filter(Boolean).join(' · '),
+      a.address || '',
+      a.memo || '',
+      a.isBooked ? '예약완료' : '후보',
+    ]),
+    ...shopping.map(s => [
+      '쇼핑', s.name, s.city,
+      '', s.memo || '', s.isPurchased ? '구매완료' : '예정',
+    ]),
+    ...transport.map(t => [
+      '교통', `${t.from} → ${t.to}`, t.date,
+      [t.provider, t.trainNumber, t.departureTime && t.arrivalTime ? `${t.departureTime}~${t.arrivalTime}` : ''].filter(Boolean).join(' · '),
+      t.memo || '', t.status,
+    ]),
+    ...memos.map(m => [
+      '관광지', m.title, m.tags.join(', '),
+      m.url || '', m.memo || '', '',
+    ]),
+  ];
+  return { headers: TRAVEL_POOL_HEADERS, rows };
 }

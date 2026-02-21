@@ -13,8 +13,13 @@ import {
   sheetDataToShopping,
   checklistToSheetData,
   sheetDataToChecklist,
+  transportToSheetData,
+  sheetDataToTransport,
   memosToSheetData,
   sheetDataToMemos,
+  localToursToSheetData,
+  sheetDataToLocalTours,
+  travelPoolToSheetData,
 } from './googleSheets';
 import { loadTripData, saveTripData } from '../hooks/useTrip';
 import type { TripData } from '../types';
@@ -44,13 +49,15 @@ async function hydrateFromSheets() {
   if (!hasScriptUrl() || isHydrating) return false;
   isHydrating = true;
   try {
-    const [flightRows, scheduleRows, accomRows, shoppingRows, checklistRows, memoRows] = await Promise.all([
+    const [flightRows, scheduleRows, accomRows, shoppingRows, checklistRows, memoRows, transportRows, localTourRows] = await Promise.all([
       safeRead('항공편'),
       safeRead('일정'),
       safeRead('숙소'),
       safeRead('쇼핑'),
       safeRead('체크리스트'),
       safeRead('메모'),
+      safeRead('교통'),
+      safeRead('현지투어'),
     ]);
 
     const current = loadTripData();
@@ -85,6 +92,16 @@ async function hydrateFromSheets() {
 
     if (memoRows.length > 0) {
       next.memos = sheetDataToMemos(memoRows);
+      changed = true;
+    }
+
+    if (transportRows.length > 0) {
+      next.transport = sheetDataToTransport(transportRows);
+      changed = true;
+    }
+
+    if (localTourRows.length > 0) {
+      next.localTours = sheetDataToLocalTours(localTourRows);
       changed = true;
     }
 
@@ -131,6 +148,21 @@ async function exportAllToSheets() {
 
     const memos = memosToSheetData(data.memos);
     await syncSheet('메모', memos.headers, memos.rows);
+
+    const transport = transportToSheetData(data.transport);
+    await syncSheet('교통', transport.headers, transport.rows);
+
+    const localTours = localToursToSheetData(data.localTours);
+    await syncSheet('현지투어', localTours.headers, localTours.rows);
+
+    const pool = travelPoolToSheetData(
+      data.localTours,
+      data.accommodations,
+      data.shopping,
+      data.transport,
+      data.memos,
+    );
+    await syncSheet('여행준비', pool.headers, pool.rows);
   } catch (error) {
     console.warn('[SheetSync] 자동 내보내기 실패', error);
   } finally {

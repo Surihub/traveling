@@ -3,19 +3,14 @@ import { useTrip, useDays, useAccommodations } from '../hooks/useTrip';
 import type { Day } from '../types';
 import { FlightInfo } from './FlightInfo';
 import { DayDetail } from './DayDetail';
-import { AccommodationBoard } from './AccommodationBoard';
-import { ShoppingBoard } from './ShoppingBoard';
-import { TransportBoard } from './TransportBoard';
-import { MemoBoard } from './MemoBoard';
-import { LocalTourBoard } from './LocalTourBoard';
-import { PlacesToVisit } from './PlacesToVisit';
+import { InfoBoard } from './InfoBoard';
 import { GuideSection } from './GuideSection';
 import { ItalianHelper } from './ItalianHelper';
 import { CurrencyCalculator } from './CurrencyCalculator';
 import { forceHydrateNow, forceExportNow } from '../utils/autoSheetSync';
 
 type MainTab = 'travel' | 'italian' | 'currency';
-type TravelSubTab = 'overview' | 'accommodation' | 'shopping' | 'transport' | 'schedule' | 'memo' | 'localtour';
+type TravelSubTab = 'overview' | 'schedule' | 'info';
 type ManualSyncMode = 'pull' | 'push' | 'both';
 
 interface DashboardProps {
@@ -237,11 +232,7 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
   const travelSubTabs: { key: TravelSubTab; label: string }[] = [
     { key: 'overview', label: '개요' },
     { key: 'schedule', label: '일정' },
-    { key: 'localtour', label: '현지투어' },
-    { key: 'accommodation', label: '숙소' },
-    { key: 'shopping', label: '쇼핑' },
-    { key: 'transport', label: '교통' },
-    { key: 'memo', label: '메모' },
+    { key: 'info', label: '준비사항' },
   ];
 
   return (
@@ -431,8 +422,6 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
             {/* Schedule tab */}
             {travelSubTab === 'schedule' && (
               <>
-                <PlacesToVisit days={sortedDays} canEdit={canEdit} />
-
                 <div className="space-y-4">
                   {sortedDays.map((day, index) => {
                     const color = cityColorMap.get(day.city?.trim() || '기타') || cityColorPalette[0];
@@ -571,70 +560,8 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
               </>
             )}
 
-            {/* Accommodation tab */}
-            {travelSubTab === 'accommodation' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">숙소 관리</h2>
-                    <p className="text-sm text-gray-500">숙소 후보를 추가하고 관리하세요</p>
-                  </div>
-                </div>
-                <AccommodationBoard canEdit={canEdit} />
-              </div>
-            )}
-
-            {/* Shopping tab */}
-            {travelSubTab === 'shopping' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">쇼핑 리스트</h2>
-                    <p className="text-sm text-gray-500">사고 싶은 아이템을 관리하세요</p>
-                  </div>
-                </div>
-                <ShoppingBoard canEdit={canEdit} />
-              </div>
-            )}
-
-            {/* Transport tab */}
-            {travelSubTab === 'transport' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">교통 / 열차 예약</h2>
-                    <p className="text-sm text-gray-500">기차와 이동 일정을 정리하세요</p>
-                  </div>
-                </div>
-                <TransportBoard canEdit={canEdit} />
-              </div>
-            )}
-
-            {/* Local Tour tab */}
-            {travelSubTab === 'localtour' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">현지투어</h2>
-                    <p className="text-sm text-gray-500">예약한 투어의 집합 장소, 예약 번호 등을 관리하세요</p>
-                  </div>
-                </div>
-                <LocalTourBoard canEdit={canEdit} />
-              </div>
-            )}
-
-            {/* Memo tab */}
-            {travelSubTab === 'memo' && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-gray-800">메모</h2>
-                    <p className="text-sm text-gray-500">링크, 태그와 함께 메모를 정리하세요</p>
-                  </div>
-                </div>
-                <MemoBoard canEdit={canEdit} />
-              </div>
-            )}
+            {/* Info tab — 현지투어 / 숙소 / 쇼핑 / 교통 / 메모 통합 */}
+            {travelSubTab === 'info' && <InfoBoard canEdit={canEdit} />}
 
           </>
         )

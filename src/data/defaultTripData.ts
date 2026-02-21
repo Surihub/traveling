@@ -53,58 +53,58 @@ const inboundFlight = {
 
 const accommodationsSeed: Array<Omit<AccommodationCandidate, 'createdAt'> & { checkIn?: string; checkOut?: string }> = [
   {
-    id: 'acc-rome-arrival',
-    name: '로마 A 호텔',
+    id: 'acc-a',
+    name: 'A',
     city: '로마',
     checkIn: '2026-03-01',
-    checkOut: '2026-03-02',
-    memo: '조금 좋은 곳, 캐리어 보관 요청 필수!',
+    checkOut: '2026-03-03',
+    memo: '처음 로마 숙소, 짐 맡겨달라고 하기(하루만용!) - 시내 근처',
     isBooked: true,
   },
   {
-    id: 'acc-rome-spagna',
-    name: '스페인 광장 인근 스테이',
-    city: '로마',
-    checkIn: '2026-03-02',
-    checkOut: '2026-03-05',
-    memo: 'A 라벨과 동일 라인, 명소 도보 이동',
-    isBooked: false,
-  },
-  {
-    id: 'acc-south-nomad',
-    name: '남부 노마드트래블 하우스',
+    id: 'acc-b',
+    name: 'B',
     city: '소렌토',
     checkIn: '2026-03-03',
     checkOut: '2026-03-04',
-    memo: '남부일정 연계 숙소',
-    isBooked: false,
+    memo: '소렌토 숙소(리스트 있음)',
+    isBooked: true,
   },
   {
-    id: 'acc-venezia-station',
-    name: '베네치아 산타 루치아 인근',
+    id: 'acc-c',
+    name: 'C',
+    city: '로마',
+    checkIn: '2026-03-04',
+    checkOut: '2026-03-05',
+    memo: '처음 로마 숙소/혹은 테르미니역 근처 숙소(늦게 떨어지고 일찍 나가야 하므로)',
+    isBooked: true,
+  },
+  {
+    id: 'acc-d',
+    name: 'D',
     city: '베네치아',
     checkIn: '2026-03-05',
-    checkOut: '2026-03-08',
-    memo: '기차역 접근성 최우선',
-    isBooked: false,
+    checkOut: '2026-03-07',
+    memo: '베네치아(메스트레) 숙소, 본섬은 돌계단 많아서 비추, 메스트레가 좋음',
+    isBooked: true,
   },
   {
-    id: 'acc-florence-smn',
-    name: '피렌체 SMN 명품 스트리트',
+    id: 'acc-e',
+    name: 'E',
     city: '피렌체',
-    checkIn: '2026-03-08',
-    checkOut: '2026-03-11',
-    memo: 'SMN 역 ~ 명품 거리 사이, 쇼핑 최적화',
-    isBooked: false,
+    checkIn: '2026-03-07',
+    checkOut: '2026-03-10',
+    memo: '피렌체 숙소, 산타노벨라 근처',
+    isBooked: true,
   },
   {
-    id: 'acc-rome-final',
-    name: '로마 마지막 쇼핑 존',
+    id: 'acc-f',
+    name: 'F',
     city: '로마',
-    checkIn: '2026-03-11',
+    checkIn: '2026-03-10',
     checkOut: '2026-03-13',
-    memo: '마지막 집중 쇼핑과 공항 이동 동선',
-    isBooked: false,
+    memo: '마지막 로마 숙소, 처음이랑 다른 곳',
+    isBooked: true,
   },
 ];
 
@@ -112,82 +112,21 @@ type ScheduleSeed = {
   date: string;
   city: string;
   summary: string;
-  accommodationId: string;
 };
 
 const scheduleSeeds: ScheduleSeed[] = [
-  {
-    date: '2026-03-01',
-    city: '로마',
-    summary: '인천→로마 19:35 도착, 숙소 체크인 및 휴식',
-    accommodationId: 'acc-rome-arrival',
-  },
-  {
-    date: '2026-03-02',
-    city: '로마',
-    summary: '판테온, 트레비 분수, 나보나 광장 시내 산책',
-    accommodationId: 'acc-rome-spagna',
-  },
-  {
-    date: '2026-03-03',
-    city: '남부',
-    summary: '피렌체→나폴리→소렌토 이동, 지중해 해안 휴식',
-    accommodationId: 'acc-south-nomad',
-  },
-  {
-    date: '2026-03-04',
-    city: '로마',
-    summary: '오후 8시 테르미니역 도착, 로마 야간 산책',
-    accommodationId: 'acc-rome-spagna',
-  },
-  {
-    date: '2026-03-05',
-    city: '베네치아',
-    summary: '로마→베네치아 이동(3.5h), 산 마르코 광장 야경',
-    accommodationId: 'acc-venezia-station',
-  },
-  {
-    date: '2026-03-06',
-    city: '베네치아',
-    summary: '베로나 & 시르미오네(가르다 호수) 당일치기',
-    accommodationId: 'acc-venezia-station',
-  },
-  {
-    date: '2026-03-07',
-    city: '베네치아',
-    summary: '부라노/무라노 섬 투어 또는 본섬 미로 골목 탐험',
-    accommodationId: 'acc-venezia-station',
-  },
-  {
-    date: '2026-03-08',
-    city: '피렌체',
-    summary: '베네치아→피렌체 이동(2h), 보테가·미우미우 쇼핑 체크',
-    accommodationId: 'acc-florence-smn',
-  },
-  {
-    date: '2026-03-09',
-    city: '피렌체',
-    summary: '우피치 · 두오모 · 명품 거리 산책',
-    accommodationId: 'acc-florence-smn',
-  },
-  {
-    date: '2026-03-10',
-    city: '피렌체',
-    summary: '더 몰 아울렛 투어, SMN 일대 야간 산책',
-    accommodationId: 'acc-florence-smn',
-  },
-  {
-    date: '2026-03-11',
-    city: '로마',
-    summary: '로마 복귀, 마지막 쇼핑과 포켓 커피 챙기기',
-    accommodationId: 'acc-rome-final',
-  },
-  {
-    date: '2026-03-12',
-    city: '로마',
-    summary: '여유로운 체크아웃, 공항 이동 후 22:00 출국',
-    accommodationId: 'acc-rome-final',
-  },
+  { date: '2026-03-01', city: '로마', summary: '인천→로마 19:35 도착, 숙소 체크인 및 휴식' },
+  { date: '2026-03-02', city: '로마', summary: '판테온, 트레비 분수, 나보나 광장 시내 산책' },
+  { date: '2026-03-03', city: '남부', summary: '남부 투어 출발 — 나폴리 → 소렌토 이동' },
+  { date: '2026-03-04', city: '로마', summary: '남부 투어 복귀, 오후 테르미니역 도착 후 야간 산책' },
+  { date: '2026-03-05', city: '베네치아', summary: '로마→베네치아 이동(3.5h), 산 마르코 광장 야경' },
+  { date: '2026-03-06', city: '베네치아', summary: '베로나 & 시르미오네(가르다 호수) 당일치기' },
+  { date: '2026-03-07', city: '베네치아', summary: '부라노/무라노 섬 투어 → 피렌체로 이동' },
+  { date: '2026-03-08', city: '피렌체', summary: '우피치 · 두오모 · 명품 거리 산책' },
+  { date: '2026-03-09', city: '피렌체', summary: '토스카나 와이너리 투어 or 산타 크로체 골목 탐험' },
+  { date: '2026-03-10', city: '피렌체', summary: '더 몰 아울렛 투어 → 로마로 이동' },
+  { date: '2026-03-11', city: '로마', summary: '바티칸 투어 + 마지막 쇼핑, 포켓 커피 챙기기' },
+  { date: '2026-03-12', city: '로마', summary: '여유로운 체크아웃, 공항 이동 후 22:00 출국' },
 ];
 
 const shoppingSeeds: Array<{ name: string; city: string; memo?: string }> = [
@@ -320,19 +259,48 @@ const accommodations: AccommodationCandidate[] = accommodationsSeed.map((acc) =>
   createdAt: new Date(DEFAULT_UPDATED_AT),
 }));
 
-const days: Day[] = scheduleSeeds.map((seed, index) => {
-  const accommodation = accommodations.find((acc) => acc.id === seed.accommodationId);
-  return {
+/** "2026.3.3." 또는 "2026.03.03" 형식을 "2026-03-03" ISO 형식으로 변환 */
+function normalizeDateStr(d: string): string {
+  if (!d) return '';
+  const s = d.trim().replace(/\.\s*$/, ''); // 끝의 마침표 제거
+  if (s.includes('.')) {
+    const parts = s.split('.');
+    if (parts.length === 3) {
+      const [y, m, day] = parts;
+      return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+  return s;
+}
+
+/** 체크인/체크아웃 날짜를 기준으로 days에 숙소를 자동 배정한다 (checkIn <= date < checkOut) */
+export function autoAssignAccommodations(days: Day[], accs: AccommodationCandidate[]): Day[] {
+  return days.map((day) => {
+    const acc = accs.find((a) => {
+      const ci = normalizeDateStr(a.checkIn || '');
+      const co = normalizeDateStr(a.checkOut || '');
+      return ci && co && ci <= day.date && day.date < co;
+    });
+    if (!acc) return day;
+    return {
+      ...day,
+      accommodationId: acc.id,
+      accommodationName: acc.name,
+      accommodationAddress: acc.address || acc.memo,
+      accommodationMapUrl: acc.googleMapsUrl,
+    };
+  });
+}
+
+const days: Day[] = autoAssignAccommodations(
+  scheduleSeeds.map((seed, index) => ({
     id: `day-${seed.date}`,
     date: seed.date,
     city: seed.city,
     items: [createTripItem(seed.summary, `${seed.date}-${index}`)],
-    accommodationId: seed.accommodationId,
-    accommodationName: accommodation?.name,
-    accommodationAddress: accommodation?.memo,
-    accommodationMapUrl: undefined,
-  };
-});
+  })),
+  accommodations
+);
 
 const shopping: ShoppingItem[] = shoppingSeeds.map((seed, index) => ({
   id: `shop-${index}`,
