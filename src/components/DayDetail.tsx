@@ -13,13 +13,12 @@ interface DayDetailProps {
   onUpdateDay: (dayId: string, data: Partial<Day>) => Promise<void>;
   canEdit: boolean;
   isModal?: boolean;
-  initialActiveType?: ItemType;
   accommodations: AccommodationCandidate[];
 }
 
-export function DayDetail({ day, onBack, onUpdateDay, canEdit, isModal = false, initialActiveType, accommodations }: DayDetailProps) {
+export function DayDetail({ day, onBack, onUpdateDay, canEdit, isModal = false, accommodations }: DayDetailProps) {
   const { items, loading, addItem, updateItem, deleteItem } = useDayItems(day.id);
-  const [activeFormType, setActiveFormType] = useState<ItemType | null>(initialActiveType ?? null);
+  const [activeFormType, setActiveFormType] = useState<ItemType | null>(null);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
   const [editCity, setEditCity] = useState(day.city);
   const [assigning, setAssigning] = useState(false);
@@ -33,12 +32,6 @@ export function DayDetail({ day, onBack, onUpdateDay, canEdit, isModal = false, 
       })),
     [items]
   );
-
-  useEffect(() => {
-    if (initialActiveType) {
-      setActiveFormType(initialActiveType);
-    }
-  }, [initialActiveType, day.id]);
 
   useEffect(() => {
     setSelectedAccommodationId(day.accommodationId || '');

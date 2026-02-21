@@ -49,9 +49,9 @@ function App() {
           <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full">
             <h2 className="text-xl font-bold text-gray-800 mb-4">🔒 비밀번호 입력</h2>
             <p className="text-gray-600 text-sm mb-4">
-              여행 관리 탭은 비공개입니다.
+              여행 관리 탭은 수빈석빈만 편집가능합니다.
               <br />
-              비밀번호를 입력하면 1시간 동안 잠금이 해제됩니다.
+              비밀번호를 입력하면 1시간 동안 편집이 가능해집니다.
             </p>
             <input
               type="password"

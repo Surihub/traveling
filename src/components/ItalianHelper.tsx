@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 interface Phrase {
   italian: string;
@@ -61,68 +61,146 @@ const phrases: Record<string, Phrase[]> = {
 };
 
 const categories = [
-  { key: 'greeting', label: '인사' },
-  { key: 'food', label: '음식/식당' },
-  { key: 'shopping', label: '쇼핑' },
-  { key: 'transport', label: '교통' },
-  { key: 'emergency', label: '긴급' },
+  { key: 'greeting', label: '인사', emoji: '👋' },
+  { key: 'food', label: '음식·식당', emoji: '🍝' },
+  { key: 'shopping', label: '쇼핑', emoji: '🛍️' },
+  { key: 'transport', label: '교통', emoji: '🚆' },
+  { key: 'emergency', label: '긴급', emoji: '🚨' },
 ];
+
+const allPhrases = Object.entries(phrases).flatMap(([cat, list]) =>
+  list.map((p) => ({ ...p, cat }))
+);
+
+function PhraseButton({ phrase, catLabel, onClick }: { phrase: Phrase; catLabel?: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left bg-white border border-gray-100 rounded-2xl px-4 py-3 hover:border-green-300 hover:bg-green-50/50 transition-all active:scale-[0.98] shadow-sm"
+    >
+      {catLabel && (
+        <span className="text-[10px] font-semibold text-green-600 uppercase tracking-wide">{catLabel}</span>
+      )}
+      <p className="font-semibold text-gray-800 text-base mt-0.5">{phrase.italian}</p>
+      <p className="text-sm text-gray-500 mt-0.5">{phrase.korean}</p>
+      <p className="text-xs text-gray-400 mt-0.5">[{phrase.pronunciation}]</p>
+    </button>
+  );
+}
 
 export function ItalianHelper() {
   const [activeCategory, setActiveCategory] = useState('greeting');
   const [selectedPhrase, setSelectedPhrase] = useState<Phrase | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim();
+    if (!q) return [];
+    return allPhrases.filter(
+      (p) =>
+        p.korean.includes(q) ||
+        p.italian.toLowerCase().includes(q.toLowerCase()) ||
+        p.pronunciation.includes(q)
+    );
+  }, [searchQuery]);
+
+  const isSearching = searchQuery.trim().length > 0;
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="text-lg font-bold text-gray-800">🇮🇹 자주 쓰는 이탈리아어</h2>
-        <p className="text-sm text-gray-500 mt-0.5">표현을 탭하면 화면에 크게 표시됩니다</p>
+      {/* 검색창 */}
+      <div className="relative mb-4">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="한국어로 검색  예: 감사합니다, 계산서"
+          className="w-full bg-white border border-gray-200 rounded-2xl pl-9 pr-9 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-300 shadow-sm"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* 카테고리 탭 */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-        {categories.map((cat) => (
-          <button
-            key={cat.key}
-            onClick={() => setActiveCategory(cat.key)}
-            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              activeCategory === cat.key
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
+      {isSearching ? (
+        /* 검색 결과 */
+        <div>
+          <p className="text-xs text-gray-400 mb-3">
+            검색 결과 <span className="font-semibold text-gray-600">{searchResults.length}개</span>
+          </p>
+          {searchResults.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <p className="text-sm">일치하는 표현이 없어요</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {searchResults.map((p, i) => {
+                const cat = categories.find((c) => c.key === p.cat);
+                return (
+                  <PhraseButton
+                    key={i}
+                    phrase={p}
+                    catLabel={cat ? `${cat.emoji} ${cat.label}` : undefined}
+                    onClick={() => setSelectedPhrase(p)}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* 카테고리 탭 + 표현 목록 */
+        <>
+          <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-none">
+            {categories.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => setActiveCategory(cat.key)}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  activeCategory === cat.key
+                    ? 'bg-green-500 text-white shadow-sm'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <span>{cat.emoji}</span>
+                {cat.label}
+              </button>
+            ))}
+          </div>
 
-      {/* 표현 그리드 */}
-      <div className="grid grid-cols-1 gap-2">
-        {phrases[activeCategory].map((phrase, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedPhrase(phrase)}
-            className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors active:scale-[0.98]"
-          >
-            <p className="font-semibold text-gray-800 text-base">{phrase.italian}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{phrase.korean}</p>
-          </button>
-        ))}
-      </div>
+          <div className="space-y-2">
+            {phrases[activeCategory].map((phrase, i) => (
+              <PhraseButton key={i} phrase={phrase} onClick={() => setSelectedPhrase(phrase)} />
+            ))}
+          </div>
+        </>
+      )}
 
       {/* 전체화면 표시 모달 */}
       {selectedPhrase && (
         <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-blue-600 cursor-pointer p-8"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-green-600 cursor-pointer p-8"
           onClick={() => setSelectedPhrase(null)}
         >
           <p className="text-white/60 text-sm mb-8 tracking-wide">탭하여 닫기</p>
-          <p className="text-white font-bold text-center leading-tight"
-            style={{ fontSize: 'clamp(2.5rem, 10vw, 5rem)' }}>
+          <p
+            className="text-white font-bold text-center leading-tight"
+            style={{ fontSize: 'clamp(2.5rem, 10vw, 5rem)' }}
+          >
             {selectedPhrase.italian}
           </p>
-          <p className="text-blue-100 text-2xl mt-6 text-center">{selectedPhrase.korean}</p>
-          <p className="text-blue-200 text-lg mt-3 text-center">[{selectedPhrase.pronunciation}]</p>
+          <p className="text-green-100 text-2xl mt-6 text-center">{selectedPhrase.korean}</p>
+          <p className="text-green-200 text-lg mt-3 text-center">[{selectedPhrase.pronunciation}]</p>
         </div>
       )}
     </div>

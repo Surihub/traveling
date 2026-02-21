@@ -134,6 +134,25 @@ export interface WishlistItem {
   createdAt: Date;
 }
 
+// ── 현지투어 ──
+
+export type TourStatus = 'planned' | 'booked' | 'completed';
+
+export interface LocalTour {
+  id: string;
+  name: string;           // 투어 이름
+  date: string;           // 투어 날짜
+  duration?: string;      // 기간 (예: 1박2일, 6시간)
+  provider?: string;      // 투어 업체
+  meetingPoint?: string;  // 집합 장소
+  meetingTime?: string;   // 집합 시간
+  reservationCode?: string; // 예약 번호
+  price?: string;         // 가격
+  memo?: string;          // 메모
+  status: TourStatus;
+  createdAt: Date;
+}
+
 // ── 메모 ──
 
 export interface MemoNote {
@@ -154,6 +173,7 @@ export interface TripData {
   checklist: ChecklistItem[];
   transport: TransportBooking[];
   memos: MemoNote[];
+  localTours: LocalTour[];
 }
 
 // ── 상수 ──

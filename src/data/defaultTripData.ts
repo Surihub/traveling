@@ -8,6 +8,7 @@ import type {
   ShoppingItem,
   ChecklistItem,
   TransportBooking,
+  LocalTour,
 } from '../types';
 
 export const DEFAULT_UPDATED_AT = '2025-01-01T00:00:00Z';
@@ -356,9 +357,54 @@ const transport: TransportBooking[] = transportSeeds.map((seed, index) => ({
   createdAt: new Date(DEFAULT_UPDATED_AT),
 }));
 
+const localTourSeeds: Array<Omit<LocalTour, 'id' | 'createdAt'>> = [
+  {
+    name: '남부투어 1박',
+    date: '2026-03-03',
+    duration: '1박2일',
+    provider: '노마드트래블',
+    meetingPoint: '로마 테르미니역 5번 출구',
+    meetingTime: '07:00',
+    reservationCode: '',
+    price: '',
+    memo: '나폴리 → 폼페이 → 소렌토 → 아말피 코스트. 픽업 후 전용 버스 이동. 체크인 숙소: 소렌토 노마드하우스',
+    status: 'planned',
+  },
+  {
+    name: '토스카나 와이너리 투어',
+    date: '2026-03-10',
+    duration: '종일 (약 8시간)',
+    provider: '',
+    meetingPoint: '피렌체 산타마리아 노벨라역 광장',
+    meetingTime: '09:00',
+    reservationCode: '',
+    price: '',
+    memo: '키안티 와인 산지 투어. 와이너리 방문 및 시음 포함. 인원 확인 후 예약 진행',
+    status: 'planned',
+  },
+  {
+    name: '바티칸 투어',
+    date: '2026-03-02',
+    duration: '반일 (약 4시간)',
+    provider: '',
+    meetingPoint: '바티칸 박물관 입구 (Viale Vaticano)',
+    meetingTime: '09:00',
+    reservationCode: '',
+    price: '',
+    memo: '바티칸 박물관 → 시스티나 성당 → 성 베드로 대성당. 줄 없이 입장하려면 사전 예약 필수',
+    status: 'planned',
+  },
+];
+
+const localTours: LocalTour[] = localTourSeeds.map((seed, index) => ({
+  id: `tour-${index}`,
+  ...seed,
+  createdAt: new Date(DEFAULT_UPDATED_AT),
+}));
+
 const trip: Trip = {
   id: 'italy-2026',
-  title: '신혼여행을 위한 앱',
+  title: '수빈석빈 in Italy',
   members: [],
   startDate: '2026-03-01',
   endDate: '2026-03-12',
@@ -377,4 +423,5 @@ export const defaultTripData: TripData = {
   checklist,
   transport,
   memos: [],
+  localTours,
 };

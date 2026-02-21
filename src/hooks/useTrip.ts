@@ -11,6 +11,7 @@ import type {
   TripData,
   TransportBooking,
   MemoNote,
+  LocalTour,
 } from '../types';
 import { defaultTripData } from '../data/defaultTripData';
 
@@ -27,6 +28,7 @@ function loadData(): TripData {
     if (!parsed.checklist) parsed.checklist = [];
     if (!parsed.transport) parsed.transport = [];
     if (!parsed.memos) parsed.memos = [];
+    if (!parsed.localTours) parsed.localTours = defaultData.localTours;
     // Migrate old flight format
     if (parsed.trip.flight && !parsed.trip.flight.outbound && parsed.trip.flight.departure) {
       parsed.trip.flight = defaultData.trip.flight;
@@ -339,6 +341,36 @@ export function useMemos() {
   }, []);
   const deleteItem = useCallback(async (itemId: string) => {
     mutateData((data) => { data.memos = data.memos.filter((x) => x.id !== itemId); });
+  }, []);
+
+  return { items, loading, addItem, updateItem, deleteItem };
+}
+
+// ── useLocalTours ──
+
+export function useLocalTours() {
+  const [items, setItems] = useState<LocalTour[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setItems(loadData().localTours);
+    setLoading(false);
+    const handleChange = () => setItems(loadData().localTours);
+    window.addEventListener('tripDataChanged', handleChange);
+    return () => window.removeEventListener('tripDataChanged', handleChange);
+  }, []);
+
+  const addItem = useCallback(async (item: Omit<LocalTour, 'id' | 'createdAt'>) => {
+    mutateData((data) => {
+      data.localTours.push({ ...item, id: `tour-${Date.now()}`, createdAt: new Date() });
+      data.localTours.sort((a, b) => a.date.localeCompare(b.date));
+    });
+  }, []);
+  const updateItem = useCallback(async (itemId: string, updates: Partial<LocalTour>) => {
+    mutateData((data) => { const i = data.localTours.findIndex((x) => x.id === itemId); if (i !== -1) data.localTours[i] = { ...data.localTours[i], ...updates }; });
+  }, []);
+  const deleteItem = useCallback(async (itemId: string) => {
+    mutateData((data) => { data.localTours = data.localTours.filter((x) => x.id !== itemId); });
   }, []);
 
   return { items, loading, addItem, updateItem, deleteItem };
