@@ -6,6 +6,7 @@ import {
   accommodationsToSheetData,
   sheetDataToAccommodations,
   sheetDataToAllSchedule,
+  allScheduleToSheetData,
   sheetDataToExpenses,
 } from './googleSheets';
 import { loadTripData, saveTripData } from '../hooks/useTrip';
@@ -101,9 +102,15 @@ async function exportAllToSheets() {
   try {
     const data = loadTripData();
 
-    // 숙소 탭만 앱→시트 방향으로 내보냄 (모든일정·비용정리는 시트가 원본)
+    // 숙소 탭: 앱 → 시트
     const accommodations = accommodationsToSheetData(data.accommodations);
     await syncSheet('숙소', accommodations.headers, accommodations.rows);
+
+    // 모든일정 탭: 편집 가능한 필드(주요일정·이동계획·준비할것·메모) 반영
+    if (data.scheduleRows && data.scheduleRows.length > 0) {
+      const schedule = allScheduleToSheetData(data.scheduleRows);
+      await syncSheet('모든일정', schedule.headers, schedule.rows);
+    }
   } catch (error) {
     console.warn('[SheetSync] 자동 내보내기 실패', error);
   } finally {

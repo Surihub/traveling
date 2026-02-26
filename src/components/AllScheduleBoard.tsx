@@ -1,7 +1,25 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useScheduleRows } from '../hooks/useTrip';
-import { readSheet, syncSheet, sheetDataToAccommodations, accommodationsToSheetData } from '../utils/googleSheets';
+import { readSheet, syncSheet, sheetDataToAccommodations, accommodationsToSheetData, normalizeDateStr } from '../utils/googleSheets';
 import type { ScheduleRow, AccommodationCandidate } from '../types';
+
+// "2026-03-03" → 로컬 타임 Date (UTC 파싱 방지)
+function parseDateLocal(dateStr: string): Date {
+  const s = normalizeDateStr(dateStr);
+  const parts = s.split('-').map(Number);
+  if (parts.length === 3 && parts.every(n => !isNaN(n))) {
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  return new Date(NaN);
+}
+
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+function fmtDateShort(dateStr: string): string {
+  const d = parseDateLocal(dateStr);
+  if (isNaN(d.getTime())) return dateStr || '';
+  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
+}
 
 export type ScheduleView = 'daily' | 'accommodation' | 'transport';
 
@@ -42,6 +60,9 @@ function getTransportEmoji(transport: string): string {
     t.includes('에어서울') || t.includes('티웨이') || t.includes('제주항공') ||
     t.includes('ryanair') || t.includes('easyjet') || t.includes('alitalia') ||
     t.includes('라이언') || t.includes('이지젯') || t.includes('이타에어') ||
+    t.includes('공항') || t.includes('귀국') || t.includes('출국') ||
+    t.includes('인천') || t.includes('airport') || t.includes('terminal') ||
+    t.includes('터미널') || t.includes('탑승') || t.includes('boarding') ||
     FLIGHT_NUMBER_RE.test(tUpper)
   ) return '✈️';
 
@@ -157,11 +178,7 @@ function DailyCard({
     ? getTransportEmoji(row.transport)
     : (hasRoute ? '🚗' : '');
 
-  const dateObj = new Date(row.date);
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const dateLabel = row.date
-    ? `${dateObj.getMonth() + 1}/${dateObj.getDate()}(${weekdays[dateObj.getDay()]})`
-    : '';
+  const dateLabel = fmtDateShort(row.date);
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-sm">
@@ -413,12 +430,7 @@ function AccommodationView({ canEdit, highlightAccom }: { canEdit: boolean; high
     );
   }
 
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const fmtDate = (d: string) => {
-    if (!d) return '—';
-    const obj = new Date(d);
-    return `${obj.getMonth() + 1}/${obj.getDate()}(${weekdays[obj.getDay()]})`;
-  };
+  const fmtDate = (d: string) => d ? fmtDateShort(d) : '—';
 
   const sorted = [...accommodations].sort((a, b) => {
     if (!a.checkIn) return 1;
@@ -552,12 +564,6 @@ function TransportView({ rows }: { rows: ScheduleRow[] }) {
     );
   }
 
-  const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const fmtDate = (d: string) => {
-    const obj = new Date(d);
-    return `${obj.getMonth() + 1}/${obj.getDate()}(${weekdays[obj.getDay()]})`;
-  };
-
   return (
     <div className="space-y-3">
       {transportRows.map((row, i) => {
@@ -568,7 +574,7 @@ function TransportView({ rows }: { rows: ScheduleRow[] }) {
               <span className="text-2xl flex-shrink-0">{emoji || '🚗'}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-gray-700 text-sm">{fmtDate(row.date)}</span>
+                  <span className="font-bold text-gray-700 text-sm">{fmtDateShort(row.date)}</span>
                   {row.city && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
                       {row.city}

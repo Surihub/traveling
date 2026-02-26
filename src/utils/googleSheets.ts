@@ -3,18 +3,22 @@ import type {
   FlightLeg, FlightInfo, TransportBooking, MemoNote, LocalTour, ScheduleRow, ExpenseRow,
 } from '../types';
 
-/** "2026.3.3." 또는 "2026.03.03" → "2026-03-03" */
-function normalizeDateStr(d: string): string {
+/** "2026.3.3." / "2026. 3. 3." / "2026/3/3" → "2026-03-03" */
+export function normalizeDateStr(d: string): string {
   if (!d) return '';
-  const s = d.trim().replace(/\.\s*$/, '');
-  if (s.includes('.')) {
-    const parts = s.split('.');
+  // 이미 YYYY-MM-DD 형식이면 그대로 반환
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d.trim())) return d.trim();
+  // 점(.) 또는 슬래시(/) 구분자 처리
+  const s = d.trim().replace(/\.\s*$/, ''); // 후행 점 제거
+  const sep = s.includes('.') ? '.' : s.includes('/') ? '/' : null;
+  if (sep) {
+    const parts = s.split(sep).map(p => p.trim()).filter(Boolean);
     if (parts.length === 3) {
       const [y, m, day] = parts;
       return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
   }
-  return s;
+  return s.trim();
 }
 
 const SCRIPT_URL_KEY = 'travel_google_script_url';
@@ -477,7 +481,7 @@ export function travelPoolToSheetData(
 
 // ── [모든일정] 날짜, 도시, 주요 일정, 출발, 도착, 이동수단, 숙소, 조식, 이동계획, 준비할 것, 메모 ──
 
-const ALL_SCHEDULE_HEADERS = ['날짜', '도시', '주요 일정', '출발', '도착', '이동수단', '숙소', '조식', '이동계획', '준비할 것', '메모'];
+const ALL_SCHEDULE_HEADERS = ['날짜', '도시', '주요일정', '출발', '도착', '이동수단', '숙소', '조식', '이동계획', '준비할 것', '메모'];
 
 export function allScheduleToSheetData(rows: ScheduleRow[]) {
   const sheetRows = rows.map(row => [
@@ -492,7 +496,7 @@ export function allScheduleToSheetData(rows: ScheduleRow[]) {
 export function sheetDataToAllSchedule(rows: Record<string, string>[]): ScheduleRow[] {
   return rows.filter(r => r['날짜']).map((row, i) => ({
     id: `sched-${i}`,
-    date: String(row['날짜'] || ''),
+    date: normalizeDateStr(String(row['날짜'] || '')),
     city: String(row['도시'] || ''),
     // 시트 컬럼명 "주요일정" 또는 "주요 일정" 모두 처리
     mainSchedule: String(row['주요일정'] || row['주요 일정'] || ''),
