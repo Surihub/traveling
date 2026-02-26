@@ -56,7 +56,7 @@ export interface FlightInfo {
   inbound: FlightLeg;
 }
 
-// ── 숙소 (시트: 이름, 위치, 체크인, 체크아웃, 메모, 예약상태) ──
+// ── 숙소 (시트: 이름, 위치, 체크인, 체크아웃, 메모, 예약상태, 어메니티, 실내화, 헤어드라이기, 조식, 구글맵, 호텔후기링크) ──
 
 export interface AccommodationCandidate {
   id: string;
@@ -68,8 +68,14 @@ export interface AccommodationCandidate {
   isBooked: boolean;    // 예약상태
   createdAt: Date;
   address?: string;
-  googleMapsUrl?: string;
+  googleMapsUrl?: string;   // 구글맵
   websiteUrl?: string;
+  // 편집 가능한 필드
+  amenities?: string;   // 어메니티
+  slippers?: string;    // 실내화 (O/X)
+  hairDryer?: string;   // 헤어드라이기 (O/X)
+  breakfast?: string;   // 조식
+  reviewLink?: string;  // 호텔후기링크
 }
 
 // ── 쇼핑 (시트: 브랜드/아이템, 도시, 메모, 구매여부) ──
@@ -164,6 +170,37 @@ export interface MemoNote {
   createdAt: Date;
 }
 
+// ── 모든일정 (구글시트 "모든일정" 탭 전용) ──
+
+export interface ScheduleRow {
+  id: string;
+  date: string;          // 날짜 - 고정
+  city: string;          // 도시 - 고정
+  mainSchedule: string;  // 주요 일정 - 편집 가능
+  departure: string;     // 출발 - 고정
+  arrival: string;       // 도착 - 고정
+  transport: string;     // 이동수단 - 고정
+  accommodation: string; // 숙소 - 고정
+  breakfast: string;     // 조식 - 고정
+  movePlan: string;      // 이동계획 - 편집 가능
+  preparation: string;   // 준비할 것 - 편집 가능
+  memo: string;          // 메모 - 편집 가능
+  updatedAt: Date;
+}
+
+// ── 비용정리 (구글시트 "비용정리" 탭 전용) ──
+
+export interface ExpenseRow {
+  id: string;
+  date: string;         // 날짜
+  category: string;     // 카테고리
+  description: string;  // 내역
+  amount: string;       // 금액
+  currency: string;     // 통화
+  amountKrw: string;    // 원화환산
+  memo: string;         // 메모
+}
+
 export interface TripData {
   trip: Trip;
   days: Day[];
@@ -174,6 +211,8 @@ export interface TripData {
   transport: TransportBooking[];
   memos: MemoNote[];
   localTours: LocalTour[];
+  scheduleRows: ScheduleRow[];
+  expenseRows: ExpenseRow[];
 }
 
 // ── 상수 ──

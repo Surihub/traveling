@@ -17,15 +17,26 @@ export function CurrencyCalculator() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${base.toLowerCase()}.json`
-      );
-      if (!res.ok) throw new Error('API 오류');
-      const data = await res.json();
-      const baseRates: Record<string, number> = data[base.toLowerCase()];
+      // 오늘 날짜 기준 URL → Cloudflare Pages → jsDelivr 순서로 시도
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const urls = [
+        `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${today}/v1/currencies/${base.toLowerCase()}.json`,
+        `https://latest.currency-api.pages.dev/v1/currencies/${base.toLowerCase()}.json`,
+        `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${base.toLowerCase()}.json`,
+      ];
 
+      let data: Record<string, unknown> | null = null;
+      for (const url of urls) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) { data = await res.json(); break; }
+        } catch { /* 다음 URL 시도 */ }
+      }
+      if (!data) throw new Error('모든 API 실패');
+
+      const baseRates = data[base.toLowerCase()] as Record<string, number>;
       setRates(baseRates);
-      setLastUpdated(data.date);
+      setLastUpdated(typeof data.date === 'string' ? data.date : today);
 
       const all = Object.keys(baseRates).map((c) => c.toUpperCase());
       setCurrencies([
@@ -78,12 +89,28 @@ export function CurrencyCalculator() {
   const currentRate = rates[toCurrency.toLowerCase()];
 
   return (
-    <div>
-      <div className="mb-4">
-        <h2 className="text-lg font-bold text-gray-800">💶 실시간 환율 계산기</h2>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {loading ? '환율 정보 불러오는 중...' : lastUpdated ? `마지막 업데이트: ${lastUpdated}` : ''}
-        </p>
+    <div className="py-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">💶 실시간 환율 계산기</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {loading
+              ? '환율 정보 불러오는 중...'
+              : lastUpdated
+                ? <span>기준일: <span className="font-semibold text-gray-700">{lastUpdated}</span></span>
+                : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => fetchRates(fromCurrency)}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-500 hover:border-blue-300 hover:text-blue-600 transition-colors disabled:opacity-40"
+        >
+          <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.01M20 20v-5h-.01M4 9a9 9 0 0115-4.47M20 15a9 9 0 01-15 4.47" />
+          </svg>
+          새로고침
+        </button>
       </div>
 
       {error && (
@@ -99,10 +126,15 @@ export function CurrencyCalculator() {
           <label className="block text-xs font-semibold text-gray-500 mb-1.5">보내는 금액</label>
           <div className="flex gap-2">
             <input
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
-              min="0"
+              type="text"
+              inputMode="decimal"
+              value={amount === 0 ? '' : String(amount)}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^0-9.]/g, '');
+                const num = raw === '' ? 0 : parseFloat(raw);
+                if (!isNaN(num)) setAmount(num);
+              }}
+              placeholder="0"
               className="flex-1 text-2xl font-bold border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-400"
             />
             <select
@@ -114,6 +146,24 @@ export function CurrencyCalculator() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+          </div>
+          {/* +1 / +5 / +10 빠른 추가 버튼 */}
+          <div className="flex gap-2 mt-2">
+            {[1, 5, 10].map((delta) => (
+              <button
+                key={delta}
+                onClick={() => setAmount((prev) => prev + delta)}
+                className="flex-1 py-1.5 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 text-sm font-semibold hover:bg-blue-100 transition-colors"
+              >
+                +{delta}
+              </button>
+            ))}
+            <button
+              onClick={() => setAmount(0)}
+              className="px-3 py-1.5 rounded-lg bg-gray-100 border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-200 transition-colors"
+            >
+              초기화
+            </button>
           </div>
         </div>
 

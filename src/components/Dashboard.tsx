@@ -1,17 +1,19 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTrip, useDays, useAccommodations } from '../hooks/useTrip';
 import type { Day } from '../types';
-import { FlightInfo } from './FlightInfo';
 import { DayDetail } from './DayDetail';
-import { InfoBoard } from './InfoBoard';
-import { GuideSection } from './GuideSection';
+import { AllScheduleBoard } from './AllScheduleBoard';
+import type { ScheduleView } from './AllScheduleBoard';
+import { AccommodationBoard } from './AccommodationBoard';
+import { ShoppingBoard } from './ShoppingBoard';
+import { TransportBoard } from './TransportBoard';
+import { MemoBoard } from './MemoBoard';
+import { LocalTourBoard } from './LocalTourBoard';
 import { ItalianHelper } from './ItalianHelper';
 import { CurrencyCalculator } from './CurrencyCalculator';
-import { forceHydrateNow, forceExportNow } from '../utils/autoSheetSync';
 
-type MainTab = 'travel' | 'italian' | 'currency';
-type TravelSubTab = 'overview' | 'schedule' | 'info';
-type ManualSyncMode = 'pull' | 'push' | 'both';
+type MainTab = 'travel' | 'schedule' | 'italian' | 'currency';
+type TravelSubTab = 'daily' | 'all-schedule' | 'transport' | 'accommodation' | 'shopping' | 'localtour' | 'memo';
 
 interface DashboardProps {
   canEdit: boolean;
@@ -29,13 +31,10 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
   const [newDayDate, setNewDayDate] = useState('');
   const [newDayCity, setNewDayCity] = useState('');
   const [remainingTime, setRemainingTime] = useState(0);
-  const [mainTab, setMainTab] = useState<MainTab>('travel');
-  const [travelSubTab, setTravelSubTab] = useState<TravelSubTab>('overview');
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [showSyncMenu, setShowSyncMenu] = useState(false);
-  const syncTimeoutRef = useRef<number | null>(null);
-  const syncMenuRef = useRef<HTMLDivElement | null>(null);
+  const [mainTab, setMainTab] = useState<MainTab | null>(null);
+  const [travelSubTab, setTravelSubTab] = useState<TravelSubTab>('daily');
+  const [scheduleView, setScheduleView] = useState<ScheduleView>('daily');
+  const [highlightAccom, setHighlightAccom] = useState<string | undefined>();
 
   const sortedDays = useMemo(() => {
     return [...days].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -70,94 +69,6 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
       return () => clearInterval(interval);
     }
   }, [canEdit, getRemainingTime]);
-
-  useEffect(() => {
-    return () => {
-      if (syncTimeoutRef.current) {
-        window.clearTimeout(syncTimeoutRef.current);
-        syncTimeoutRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showSyncMenu && syncMenuRef.current && !syncMenuRef.current.contains(event.target as Node)) {
-        setShowSyncMenu(false);
-      }
-    };
-    const handleEsc = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setShowSyncMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEsc);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEsc);
-    };
-  }, [showSyncMenu]);
-
-  const startMessages: Record<ManualSyncMode, string> = {
-    both: '시트와 앱을 동시에 최신화하는 중...',
-    pull: '시트에서 최신 데이터를 가져오는 중...',
-    push: '앱의 변경사항을 시트에 저장하는 중...',
-  };
-
-  const successMessages: Record<ManualSyncMode, string> = {
-    both: '양방향 동기화가 완료되었습니다.',
-    pull: '시트 데이터가 앱에 반영되었습니다.',
-    push: '앱 데이터가 시트에 저장되었습니다.',
-  };
-
-  const runManualSync = async (mode: ManualSyncMode) => {
-    if (syncTimeoutRef.current) {
-      window.clearTimeout(syncTimeoutRef.current);
-      syncTimeoutRef.current = null;
-    }
-    setShowSyncMenu(false);
-    setSyncStatus('loading');
-    setSyncMessage(startMessages[mode]);
-    try {
-      if (mode === 'pull' || mode === 'both') {
-        await forceHydrateNow();
-      }
-      if (mode === 'push' || mode === 'both') {
-        await forceExportNow();
-      }
-      setSyncStatus('success');
-      setSyncMessage(successMessages[mode]);
-    } catch (error) {
-      console.error('Manual sync failed', error);
-      setSyncStatus('error');
-      setSyncMessage('동기화에 실패했습니다. 잠시 후 다시 시도해주세요.');
-    } finally {
-      syncTimeoutRef.current = window.setTimeout(() => {
-        setSyncStatus('idle');
-        setSyncMessage(null);
-        syncTimeoutRef.current = null;
-      }, 5000);
-    }
-  };
-
-  const handleManualSync = async (mode: ManualSyncMode, requiresEdit: boolean) => {
-    if (requiresEdit && !canEdit) {
-      setShowSyncMenu(false);
-      setSyncStatus('error');
-      setSyncMessage('시트 데이터를 불러오려면 수정모드가 필요합니다.');
-      if (syncTimeoutRef.current) {
-        window.clearTimeout(syncTimeoutRef.current);
-      }
-      syncTimeoutRef.current = window.setTimeout(() => {
-        setSyncStatus('idle');
-        setSyncMessage(null);
-        syncTimeoutRef.current = null;
-      }, 4000);
-      return;
-    }
-    await runManualSync(mode);
-  };
 
   const formatRemainingTime = (ms: number) => {
     const minutes = Math.floor(ms / 60000);
@@ -199,40 +110,20 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
   };
 
 
-  const manualSyncOptions: { mode: ManualSyncMode; label: string; description: string; icon: string; requiresEdit: boolean }[] = [
-    {
-      mode: 'both',
-      label: '전체 동기화',
-      description: '앱 ↔ 시트 모두 최신화',
-      icon: 'M4 4v5h.01M4 9a7 7 0 0112-5m4 0v5h-.01M20 7a7 7 0 01-12 5m0 0v5h-.01M8 17a7 7 0 0012 0m0 0v-5',
-      requiresEdit: true,
-    },
-    {
-      mode: 'pull',
-      label: '시트 → 앱',
-      description: '시트 변경분만 가져오기',
-      icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10',
-      requiresEdit: true,
-    },
-    {
-      mode: 'push',
-      label: '앱 → 시트',
-      description: '현재 데이터를 시트에 저장',
-      icon: 'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12',
-      requiresEdit: false,
-    },
-  ];
-
   const mainTabs: { key: MainTab; label: string; emoji: string }[] = [
-    { key: 'travel', label: '여행관리', emoji: '🗺️' },
+    { key: 'schedule', label: '일정', emoji: '📋' },
     { key: 'italian', label: '이탈리아어', emoji: '🇮🇹' },
     { key: 'currency', label: '환율', emoji: '💶' },
   ];
 
   const travelSubTabs: { key: TravelSubTab; label: string }[] = [
-    { key: 'overview', label: '개요' },
-    { key: 'schedule', label: '일정' },
-    { key: 'info', label: '준비사항' },
+    { key: 'daily', label: '일자별로 보기' },
+    { key: 'all-schedule', label: '모든일정' },
+    { key: 'transport', label: '교통' },
+    { key: 'accommodation', label: '숙소' },
+    { key: 'shopping', label: '쇼핑' },
+    { key: 'localtour', label: '현지투어' },
+    { key: 'memo', label: '메모' },
   ];
 
   return (
@@ -242,7 +133,10 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
         <div className="max-w-2xl mx-auto px-4">
           {/* 상단: 앱 이름 + 컨트롤 */}
           <div className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setMainTab(null)}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity text-left"
+            >
               {/* 이탈리아 국기 */}
               <div className="flex h-6 w-9 overflow-hidden rounded-sm shadow-sm flex-shrink-0">
                 <div className="flex-1 bg-[#009246]" />
@@ -268,7 +162,7 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
                   </p>
                 )}
               </div>
-            </div>
+            </button>
             <div className="flex items-center gap-1.5">
               {canEdit && (
                 <>
@@ -283,99 +177,132 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
                   </button>
                 </>
               )}
-              <div className="relative" ref={syncMenuRef}>
-                <button
-                  onClick={() => setShowSyncMenu((prev) => !prev)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-colors ${
-                    syncStatus === 'loading'
-                      ? 'border-blue-200 text-blue-500 bg-blue-50'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                  }`}
-                  aria-haspopup="menu"
-                  aria-expanded={showSyncMenu}
-                >
-                  <svg className={`w-3.5 h-3.5 ${syncStatus === 'loading' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.01M20 20v-5h-.01M4 9a9 9 0 0115-4.47M20 15a9 9 0 01-15 4.47" />
-                  </svg>
-                  동기화
-                </button>
-                {showSyncMenu && (
-                  <div className="absolute right-0 mt-1.5 w-60 rounded-2xl border border-gray-100 bg-white shadow-xl z-40">
-                    <div className="px-3 py-2 border-b text-xs text-gray-400 font-medium">수동 동기화</div>
-                    <div className="py-1.5">
-                      {manualSyncOptions.map((option) => {
-                        const disabled = option.requiresEdit && !canEdit;
-                        return (
-                          <button
-                            key={option.mode}
-                            onClick={() => handleManualSync(option.mode, option.requiresEdit)}
-                            disabled={disabled || syncStatus === 'loading'}
-                            className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-3 hover:bg-gray-50 transition-colors disabled:opacity-40 ${
-                              option.mode === 'both' ? 'font-semibold' : ''
-                            }`}
-                          >
-                            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={option.icon} />
-                            </svg>
-                            <span>
-                              {option.label}
-                              <span className="block text-xs text-gray-400 font-normal">{option.description}</span>
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
-          {/* 메인 탭 */}
-          <div className="flex gap-0">
-            {mainTabs.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setMainTab(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-all border-b-2 ${
-                  mainTab === tab.key
-                    ? 'border-slate-700 text-slate-800'
-                    : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                <span className="text-base">{tab.emoji}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
+          {/* 메인 탭 — 홈에서는 숨김 */}
+          {mainTab !== null && (
+            <div className="flex gap-0">
+              {mainTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setMainTab(tab.key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-all border-b-2 ${
+                    mainTab === tab.key
+                      ? 'border-slate-700 text-slate-800'
+                      : 'border-transparent text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <span className="text-base">{tab.emoji}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
-      {syncMessage && (
-        <div className="max-w-2xl mx-auto px-4 pt-2">
-          <div className={`flex items-center gap-2 text-sm rounded-xl px-3 py-2 ${
-            syncStatus === 'error' ? 'bg-red-50 text-red-600' :
-            syncStatus === 'success' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
-          }`}>
-            {syncStatus === 'loading'
-              ? <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              : syncStatus === 'error'
-                ? <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                : <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            }
-            <span>{syncMessage}</span>
+<main className={`max-w-2xl mx-auto px-4${mainTab === null ? '' : ' py-5'}`}>
+        {/* 홈 화면 */}
+        {mainTab === null && (
+          <div className="flex flex-col" style={{ minHeight: 'calc(100dvh - 57px)' }}>
+            <div className="flex flex-col items-center pt-5 pb-4">
+              <div className="flex h-10 w-16 overflow-hidden rounded-md shadow mb-3">
+                <div className="flex-1 bg-[#009246]" />
+                <div className="flex-1 bg-white" />
+                <div className="flex-1 bg-[#ce2b37]" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">{trip?.title || '수빈이네 in Italy'}</h2>
+              {dDay !== null && (
+                <p className="text-sm text-gray-400">
+                  {dDay > 0
+                    ? <span className="text-rose-500 font-semibold">D-{dDay}</span>
+                    : dDay === 0
+                      ? <span className="text-rose-600 font-bold">D-Day! 🎉</span>
+                      : <span>D+{Math.abs(dDay)}</span>}
+                  {trip?.startDate && trip?.endDate && (
+                    <span className="ml-1.5">{trip.startDate.replace(/-/g, '.')} ~ {trip.endDate.replace(/-/g, '.')}</span>
+                  )}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-3 flex-1 pb-4">
+              {[
+                { key: 'schedule' as MainTab, emoji: '📋', label: '일정', desc: '날짜별 전체 여행 일정 보기' },
+                { key: 'italian' as MainTab, emoji: '🇮🇹', label: '이탈리아어', desc: '여행에 필요한 표현 모음' },
+                { key: 'currency' as MainTab, emoji: '💶', label: '환율', desc: '유로 ↔ 원화 빠른 계산' },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setMainTab(item.key)}
+                  className="flex-1 w-full flex flex-col items-center justify-center gap-3 bg-white rounded-2xl shadow-sm hover:shadow-md hover:bg-gray-50 active:scale-[0.98] transition-all"
+                >
+                  <span className="text-6xl leading-none">{item.emoji}</span>
+                  <div className="text-center">
+                    <p className="text-3xl font-bold text-gray-900">{item.label}</p>
+                    <p className="text-base text-gray-400 mt-1">{item.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <main className="max-w-2xl mx-auto px-4 py-5">
+        {/* 일정 탭 */}
+        {mainTab === 'schedule' && (
+          <div className="py-5">
+            {/* 서브탭 + 편집 버튼 */}
+            <div className="flex items-center gap-2 mb-5">
+              <div className="flex gap-2 flex-1">
+                {([
+                  { key: 'daily' as ScheduleView, label: '일자별로 보기' },
+                  { key: 'accommodation' as ScheduleView, label: '숙소만 보기' },
+                  { key: 'transport' as ScheduleView, label: '교통만 보기' },
+                ] as { key: ScheduleView; label: string }[]).map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setScheduleView(tab.key); setHighlightAccom(undefined); }}
+                    className={`flex-1 py-2 rounded-full text-sm font-medium transition-all ${
+                      scheduleView === tab.key
+                        ? 'bg-slate-800 text-white shadow-sm'
+                        : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {!canEdit && (
+                <button
+                  onClick={onRequestEdit}
+                  className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  편집
+                </button>
+              )}
+            </div>
+            <AllScheduleBoard
+              canEdit={canEdit}
+              view={scheduleView}
+              highlightAccom={highlightAccom}
+              onAccomClick={(name) => {
+                setHighlightAccom(name);
+                setScheduleView('accommodation');
+              }}
+            />
+          </div>
+        )}
+
         {/* 이탈리아어 탭 */}
         {mainTab === 'italian' && <ItalianHelper />}
 
         {/* 환율 탭 */}
         {mainTab === 'currency' && <CurrencyCalculator />}
 
-        {/* 여행관리 탭 */}
+        {/* 여행관리 탭 (임시 숨김) */}
         {mainTab === 'travel' && (
         tripLoading || daysLoading || accommodationsLoading ? (
           <div className="text-center py-8 text-gray-500">로딩 중...</div>
@@ -411,16 +338,8 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
               )}
             </div>
 
-            {/* Overview tab */}
-            {travelSubTab === 'overview' && (
-              <>
-                <GuideSection />
-                <FlightInfo flight={trip?.flight} />
-              </>
-            )}
-
-            {/* Schedule tab */}
-            {travelSubTab === 'schedule' && (
+            {/* 일자별로 보기 탭 */}
+            {travelSubTab === 'daily' && (
               <>
                 <div className="space-y-4">
                   {sortedDays.map((day, index) => {
@@ -560,33 +479,39 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
               </>
             )}
 
-            {/* Info tab — 현지투어 / 숙소 / 쇼핑 / 교통 / 메모 통합 */}
-            {travelSubTab === 'info' && <InfoBoard canEdit={canEdit} />}
+            {/* 모든일정 tab */}
+            {travelSubTab === 'all-schedule' && <AllScheduleBoard canEdit={canEdit} />}
+
+            {/* 교통 tab */}
+            {travelSubTab === 'transport' && <TransportBoard canEdit={canEdit} />}
+
+            {/* 숙소 tab */}
+            {travelSubTab === 'accommodation' && <AccommodationBoard canEdit={canEdit} />}
+
+            {/* 쇼핑 tab */}
+            {travelSubTab === 'shopping' && <ShoppingBoard canEdit={canEdit} />}
+
+            {/* 현지투어 tab */}
+            {travelSubTab === 'localtour' && <LocalTourBoard canEdit={canEdit} />}
+
+            {/* 메모 tab */}
+            {travelSubTab === 'memo' && <MemoBoard canEdit={canEdit} />}
 
           </>
         )
         )}
       </main>
 
-      {/* Day detail modal */}
+      {/* Day detail — 전체화면 */}
       {selectedDay && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4 py-6"
-          onClick={() => setSelectedDay(null)}
-        >
-          <div
-            className="w-full max-w-3xl max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DayDetail
-              day={selectedDay.day}
-              onBack={() => setSelectedDay(null)}
-              onUpdateDay={updateDay}
-              canEdit={canEdit}
-              isModal
-              accommodations={accommodations}
-            />
-          </div>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-50">
+          <DayDetail
+            day={selectedDay.day}
+            onBack={() => setSelectedDay(null)}
+            onUpdateDay={updateDay}
+            canEdit={canEdit}
+            accommodations={accommodations}
+          />
         </div>
       )}
     </div>

@@ -12,6 +12,7 @@ import type {
   TransportBooking,
   MemoNote,
   LocalTour,
+  ScheduleRow,
 } from '../types';
 import { defaultTripData, autoAssignAccommodations } from '../data/defaultTripData';
 
@@ -29,6 +30,8 @@ function loadData(): TripData {
     if (!parsed.transport) parsed.transport = [];
     if (!parsed.memos) parsed.memos = [];
     if (!parsed.localTours) parsed.localTours = defaultData.localTours;
+    if (!parsed.scheduleRows) parsed.scheduleRows = [];
+    if (!parsed.expenseRows) parsed.expenseRows = [];
     // Migrate old flight format
     if (parsed.trip.flight && !parsed.trip.flight.outbound && parsed.trip.flight.departure) {
       parsed.trip.flight = defaultData.trip.flight;
@@ -385,6 +388,32 @@ export function useLocalTours() {
   }, []);
 
   return { items, loading, addItem, updateItem, deleteItem };
+}
+
+// ── useScheduleRows ──
+
+export function useScheduleRows() {
+  const [rows, setRows] = useState<ScheduleRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setRows(loadData().scheduleRows || []);
+    setLoading(false);
+    const handleChange = () => setRows(loadData().scheduleRows || []);
+    window.addEventListener('tripDataChanged', handleChange);
+    return () => window.removeEventListener('tripDataChanged', handleChange);
+  }, []);
+
+  const updateRow = useCallback(async (rowId: string, updates: Partial<ScheduleRow>) => {
+    mutateData((data) => {
+      const idx = (data.scheduleRows || []).findIndex((r) => r.id === rowId);
+      if (idx !== -1) {
+        data.scheduleRows[idx] = { ...data.scheduleRows[idx], ...updates, updatedAt: new Date() };
+      }
+    });
+  }, []);
+
+  return { rows, loading, updateRow };
 }
 
 export { loadData as loadTripData, saveData as saveTripData, mutateData as mutateTripData };

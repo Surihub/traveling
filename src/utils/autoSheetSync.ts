@@ -3,23 +3,10 @@ import {
   getScriptUrl,
   readSheet,
   syncSheet,
-  flightToSheetData,
-  sheetDataToFlight,
-  daysToSheetData,
-  sheetDataToDays,
   accommodationsToSheetData,
   sheetDataToAccommodations,
-  shoppingToSheetData,
-  sheetDataToShopping,
-  checklistToSheetData,
-  sheetDataToChecklist,
-  transportToSheetData,
-  sheetDataToTransport,
-  memosToSheetData,
-  sheetDataToMemos,
-  localToursToSheetData,
-  sheetDataToLocalTours,
-  travelPoolToSheetData,
+  sheetDataToAllSchedule,
+  sheetDataToExpenses,
 } from './googleSheets';
 import { loadTripData, saveTripData } from '../hooks/useTrip';
 import type { TripData } from '../types';
@@ -49,59 +36,44 @@ async function hydrateFromSheets() {
   if (!hasScriptUrl() || isHydrating) return false;
   isHydrating = true;
   try {
-    const [flightRows, scheduleRows, accomRows, shoppingRows, checklistRows, memoRows, transportRows, localTourRows] = await Promise.all([
-      safeRead('항공편'),
-      safeRead('일정'),
+    // 3탭만 읽기: 숙소, 모든일정, 비용정리
+    const [accomRows, allScheduleRows, expenseRows] = await Promise.all([
       safeRead('숙소'),
-      safeRead('쇼핑'),
-      safeRead('체크리스트'),
-      safeRead('메모'),
-      safeRead('교통'),
-      safeRead('현지투어'),
+      safeRead('모든일정'),
+      safeRead('비용정리'),
     ]);
 
     const current = loadTripData();
     const next: TripData = { ...current };
     let changed = false;
 
-    const flight = sheetDataToFlight(flightRows);
-    if (flight) {
-      next.trip = { ...next.trip, flight };
-      changed = true;
-    }
-
-    if (scheduleRows.length > 0) {
-      next.days = sheetDataToDays(scheduleRows);
-      changed = true;
-    }
-
     if (accomRows.length > 0 || current.accommodations.length === 0) {
       next.accommodations = sheetDataToAccommodations(accomRows);
       changed = changed || accomRows.length > 0;
     }
 
-    if (shoppingRows.length > 0 || current.shopping.length === 0) {
-      next.shopping = sheetDataToShopping(shoppingRows);
-      changed = changed || shoppingRows.length > 0;
-    }
-
-    if (checklistRows.length > 0 || current.checklist.length === 0) {
-      next.checklist = sheetDataToChecklist(checklistRows);
-      changed = changed || checklistRows.length > 0;
-    }
-
-    if (memoRows.length > 0) {
-      next.memos = sheetDataToMemos(memoRows);
+    if (allScheduleRows.length > 0) {
+      const sheetRows = sheetDataToAllSchedule(allScheduleRows);
+      // 편집 가능한 필드는 로컬 값 유지, 고정 필드는 시트 값으로 업데이트
+      const localRows = current.scheduleRows || [];
+      next.scheduleRows = sheetRows.map(sr => {
+        const local = localRows.find(l => l.id === sr.id);
+        if (local) {
+          return {
+            ...sr,
+            mainSchedule: local.mainSchedule || sr.mainSchedule,
+            movePlan: local.movePlan || sr.movePlan,
+            preparation: local.preparation || sr.preparation,
+            memo: local.memo || sr.memo,
+          };
+        }
+        return sr;
+      });
       changed = true;
     }
 
-    if (transportRows.length > 0) {
-      next.transport = sheetDataToTransport(transportRows);
-      changed = true;
-    }
-
-    if (localTourRows.length > 0) {
-      next.localTours = sheetDataToLocalTours(localTourRows);
+    if (expenseRows.length > 0) {
+      next.expenseRows = sheetDataToExpenses(expenseRows);
       changed = true;
     }
 
@@ -129,40 +101,9 @@ async function exportAllToSheets() {
   try {
     const data = loadTripData();
 
-    if (data.trip.flight) {
-      const flight = flightToSheetData(data.trip.flight);
-      await syncSheet('항공편', flight.headers, flight.rows);
-    }
-
-    const schedule = daysToSheetData(data.days);
-    await syncSheet('일정', schedule.headers, schedule.rows);
-
+    // 숙소 탭만 앱→시트 방향으로 내보냄 (모든일정·비용정리는 시트가 원본)
     const accommodations = accommodationsToSheetData(data.accommodations);
     await syncSheet('숙소', accommodations.headers, accommodations.rows);
-
-    const shopping = shoppingToSheetData(data.shopping);
-    await syncSheet('쇼핑', shopping.headers, shopping.rows);
-
-    const checklist = checklistToSheetData(data.checklist);
-    await syncSheet('체크리스트', checklist.headers, checklist.rows);
-
-    const memos = memosToSheetData(data.memos);
-    await syncSheet('메모', memos.headers, memos.rows);
-
-    const transport = transportToSheetData(data.transport);
-    await syncSheet('교통', transport.headers, transport.rows);
-
-    const localTours = localToursToSheetData(data.localTours);
-    await syncSheet('현지투어', localTours.headers, localTours.rows);
-
-    const pool = travelPoolToSheetData(
-      data.localTours,
-      data.accommodations,
-      data.shopping,
-      data.transport,
-      data.memos,
-    );
-    await syncSheet('여행준비', pool.headers, pool.rows);
   } catch (error) {
     console.warn('[SheetSync] 자동 내보내기 실패', error);
   } finally {

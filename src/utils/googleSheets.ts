@@ -1,6 +1,6 @@
 import type {
   Day, TripItem, AccommodationCandidate, ShoppingItem, ChecklistItem,
-  FlightLeg, FlightInfo, TransportBooking, MemoNote, LocalTour,
+  FlightLeg, FlightInfo, TransportBooking, MemoNote, LocalTour, ScheduleRow, ExpenseRow,
 } from '../types';
 
 /** "2026.3.3." 또는 "2026.03.03" → "2026-03-03" */
@@ -247,9 +247,12 @@ export function sheetDataToDays(rows: Record<string, string>[]): Day[] {
   return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// ── [숙소] 이름, 위치, 체크인, 체크아웃, 메모, 예약상태 ──
+// ── [숙소] 이름, 위치, 체크인, 체크아웃, 메모, 예약상태, 어메니티, 실내화, 헤어드라이기, 조식, 구글맵, 호텔후기링크 ──
 
-const ACCOM_HEADERS = ['이름', '위치', '체크인', '체크아웃', '메모', '예약상태'];
+const ACCOM_HEADERS = [
+  '이름', '위치', '체크인', '체크아웃', '메모', '예약상태',
+  '어메니티', '실내화', '헤어드라이기', '조식', '구글맵', '호텔후기링크',
+];
 
 export function accommodationsToSheetData(items: AccommodationCandidate[]) {
   const rows = items.map(item => [
@@ -257,6 +260,12 @@ export function accommodationsToSheetData(items: AccommodationCandidate[]) {
     item.checkIn || '', item.checkOut || '',
     item.memo || '',
     item.isBooked ? '예약완료' : '후보',
+    item.amenities || '',
+    item.slippers || '',
+    item.hairDryer || '',
+    item.breakfast || '',
+    item.googleMapsUrl || '',
+    item.reviewLink || '',
   ]);
   return { headers: ACCOM_HEADERS, rows };
 }
@@ -271,6 +280,12 @@ export function sheetDataToAccommodations(rows: Record<string, string>[]): Accom
     memo: String(row['메모'] || '') || undefined,
     isBooked: String(row['예약상태']) === '예약완료',
     createdAt: new Date(),
+    googleMapsUrl: String(row['구글맵'] || '') || undefined,
+    amenities: String(row['어메니티'] || '') || undefined,
+    slippers: String(row['실내화'] || '') || undefined,
+    hairDryer: String(row['헤어드라이기'] || '') || undefined,
+    breakfast: String(row['조식'] || '') || undefined,
+    reviewLink: String(row['호텔후기링크'] || '') || undefined,
   }));
 }
 
@@ -458,4 +473,57 @@ export function travelPoolToSheetData(
     ]),
   ];
   return { headers: TRAVEL_POOL_HEADERS, rows };
+}
+
+// ── [모든일정] 날짜, 도시, 주요 일정, 출발, 도착, 이동수단, 숙소, 조식, 이동계획, 준비할 것, 메모 ──
+
+const ALL_SCHEDULE_HEADERS = ['날짜', '도시', '주요 일정', '출발', '도착', '이동수단', '숙소', '조식', '이동계획', '준비할 것', '메모'];
+
+export function allScheduleToSheetData(rows: ScheduleRow[]) {
+  const sheetRows = rows.map(row => [
+    row.date, row.city, row.mainSchedule,
+    row.departure, row.arrival, row.transport,
+    row.accommodation, row.breakfast,
+    row.movePlan, row.preparation, row.memo,
+  ]);
+  return { headers: ALL_SCHEDULE_HEADERS, rows: sheetRows };
+}
+
+export function sheetDataToAllSchedule(rows: Record<string, string>[]): ScheduleRow[] {
+  return rows.filter(r => r['날짜']).map((row, i) => ({
+    id: `sched-${i}`,
+    date: String(row['날짜'] || ''),
+    city: String(row['도시'] || ''),
+    // 시트 컬럼명 "주요일정" 또는 "주요 일정" 모두 처리
+    mainSchedule: String(row['주요일정'] || row['주요 일정'] || ''),
+    departure: String(row['출발'] || ''),
+    arrival: String(row['도착'] || ''),
+    transport: String(row['이동수단'] || ''),
+    accommodation: String(row['숙소'] || ''),
+    breakfast: String(row['조식'] || ''),
+    // 시트 컬럼이 "이동"+"계획" 두 열로 나뉜 경우도 처리
+    movePlan: String(
+      row['이동계획'] ||
+      [row['이동'], row['계획']].filter(Boolean).join('\n') ||
+      ''
+    ),
+    preparation: String(row['준비할 것'] || ''),
+    memo: String(row['메모'] || ''),
+    updatedAt: new Date(),
+  }));
+}
+
+// ── [비용정리] 날짜, 카테고리, 내역, 금액, 통화, 원화환산, 메모 ──
+
+export function sheetDataToExpenses(rows: Record<string, string>[]): ExpenseRow[] {
+  return rows.filter(r => r['날짜'] || r['내역']).map((row, i) => ({
+    id: `exp-${i}`,
+    date: String(row['날짜'] || ''),
+    category: String(row['카테고리'] || ''),
+    description: String(row['내역'] || ''),
+    amount: String(row['금액'] || ''),
+    currency: String(row['통화'] || 'EUR'),
+    amountKrw: String(row['원화환산'] || ''),
+    memo: String(row['메모'] || ''),
+  }));
 }

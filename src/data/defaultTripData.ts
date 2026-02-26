@@ -392,4 +392,6 @@ export const defaultTripData: TripData = {
   transport,
   memos: [],
   localTours,
+  scheduleRows: [],
+  expenseRows: [],
 };
