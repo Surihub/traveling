@@ -229,12 +229,30 @@ export function ItalianHelper() {
             <p className="text-4xl font-bold text-white leading-tight mb-4">{selected.italian}</p>
             <p className="text-xl text-blue-300 mb-3">{selected.pronunciation}</p>
             <p className="text-lg text-slate-300">{selected.korean}</p>
-            <button
-              onClick={() => setSelected(null)}
-              className="mt-10 px-8 py-3 rounded-full bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors"
-            >
-              닫기
-            </button>
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <button
+                onClick={() => {
+                  window.speechSynthesis.cancel();
+                  const utt = new SpeechSynthesisUtterance(selected.italian);
+                  utt.lang = 'it-IT';
+                  utt.rate = 0.85;
+                  window.speechSynthesis.speak(utt);
+                }}
+                className="flex items-center gap-2 px-6 py-3 rounded-full bg-blue-500/80 text-white text-sm font-medium hover:bg-blue-500 active:scale-95 transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M12 6a7 7 0 010 12M9 9a3 3 0 000 6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 15v-6" />
+                </svg>
+                발음 듣기
+              </button>
+              <button
+                onClick={() => { window.speechSynthesis.cancel(); setSelected(null); }}
+                className="px-6 py-3 rounded-full bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}
