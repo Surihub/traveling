@@ -21,6 +21,57 @@ export function normalizeDateStr(d: string): string {
   return s.trim();
 }
 
+// ── 구글시트 직접 읽기 (gviz API) ──
+
+const SPREADSHEET_ID = '1wPtSsr8AKYPM9kDSRGBWR18FpfClp3jVSwaiC1YpeN4';
+
+/** gviz 셀 값 → 문자열 변환 (Date(2026,2,0) 형식 처리) */
+function gvizVal(val: unknown): string {
+  if (val == null) return '';
+  const s = String(val);
+  // gviz 날짜 형식: Date(2026,2,0) → "2026-03-01" (월은 0-indexed)
+  const m = s.match(/^Date\((\d+),(\d+),(\d+)\)$/);
+  if (m) {
+    const [, y, mo, d] = m.map(Number);
+    return `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  return s;
+}
+
+/**
+ * 구글시트에서 직접 데이터 읽기 (Apps Script 없이)
+ * 시트가 "링크가 있는 사람 모두 보기" 권한이어야 합니다.
+ */
+export async function readSheetDirect(sheetName: string): Promise<Record<string, string>[]> {
+  const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const text = await res.text();
+  // "/*O_o*/\ngoogle.visualization.Query.setResponse({...})" 형식 파싱
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('gviz 응답 파싱 실패');
+  const data = JSON.parse(jsonMatch[0]);
+  if (data.status === 'error') {
+    throw new Error(data.errors?.[0]?.detailed_message || data.errors?.[0]?.message || 'gviz 오류');
+  }
+
+  const table = data.table;
+  if (!table?.cols || !table?.rows) return [];
+
+  const cols: string[] = table.cols.map((c: { label?: string; id: string }) => (c.label || c.id).trim());
+
+  return (table.rows as Array<{ c: Array<{ v: unknown } | null> }>)
+    .map(row => {
+      const obj: Record<string, string> = {};
+      (row.c || []).forEach((cell, i) => {
+        if (cols[i]) obj[cols[i]] = gvizVal(cell?.v);
+      });
+      return obj;
+    })
+    .filter(row => Object.values(row).some(v => v !== ''));
+}
+
 const SCRIPT_URL_KEY = 'travel_google_script_url';
 const DISABLED_MARK = '__DISABLED__';
 export const SHEET_URL_EVENT = 'sheetScriptUrlChanged';

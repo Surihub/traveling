@@ -1,7 +1,19 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useScheduleRows } from '../hooks/useTrip';
-import { readSheet, syncSheet, sheetDataToAccommodations, accommodationsToSheetData, normalizeDateStr } from '../utils/googleSheets';
+import { readSheetDirect, syncSheet, sheetDataToAccommodations, accommodationsToSheetData, normalizeDateStr } from '../utils/googleSheets';
+import { triggerSync, getSyncStatus, type SyncStatus } from '../utils/autoSheetSync';
 import type { ScheduleRow, AccommodationCandidate } from '../types';
+
+/** 동기화 상태를 구독하는 훅 */
+function useSyncStatus() {
+  const [status, setStatus] = useState<SyncStatus>(getSyncStatus);
+  useEffect(() => {
+    const handler = (e: Event) => setStatus((e as CustomEvent<SyncStatus>).detail);
+    window.addEventListener('sheetSyncStatus', handler);
+    return () => window.removeEventListener('sheetSyncStatus', handler);
+  }, []);
+  return status;
+}
 
 // "2026-03-03" → 로컬 타임 Date (UTC 파싱 방지)
 function parseDateLocal(dateStr: string): Date {
@@ -360,7 +372,7 @@ function AccommodationView({ canEdit, highlightAccom }: { canEdit: boolean; high
     setLoading(true);
     setError(null);
     try {
-      const rows = await readSheet('숙소');
+      const rows = await readSheetDirect('숙소');
       const parsed = sheetDataToAccommodations(rows);
       setAccommodations(parsed);
       // highlightAccom이 있으면 이름이 일치하는 숙소 자동 펼치기
@@ -617,19 +629,56 @@ interface AllScheduleBoardProps {
 
 export function AllScheduleBoard({ canEdit, view = 'daily', onAccomClick, highlightAccom }: AllScheduleBoardProps) {
   const { rows, loading, updateRow } = useScheduleRows();
+  const syncStatus = useSyncStatus();
+  const [retrying, setRetrying] = useState(false);
+
+  // 데이터가 없을 때 자동으로 동기화 시도
+  useEffect(() => {
+    if (!loading && rows.length === 0 && syncStatus === 'idle') {
+      void triggerSync();
+    }
+  }, [loading, rows.length, syncStatus]);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    await triggerSync();
+    setRetrying(false);
+  };
 
   const cityColorMap = useMemo(() => buildCityColorMap(rows), [rows]);
 
-  if (loading) {
-    return <div className="text-center py-8 text-gray-400 text-sm">로딩 중...</div>;
+  const isSyncing = syncStatus === 'syncing' || loading || retrying;
+
+  if (isSyncing && rows.length === 0) {
+    return (
+      <div className="text-center py-16 text-gray-400 space-y-3">
+        <p className="text-3xl animate-pulse">📡</p>
+        <p className="text-sm font-medium">구글시트에서 데이터 불러오는 중...</p>
+        <p className="text-xs text-gray-300">잠시만 기다려 주세요</p>
+      </div>
+    );
   }
 
   if (rows.length === 0) {
     return (
-      <div className="text-center py-16 text-gray-400 space-y-2">
-        <p className="text-3xl">📋</p>
-        <p className="text-sm font-medium">일정 데이터가 없어요</p>
-        <p className="text-xs text-gray-300">우측 상단 동기화 버튼으로 구글시트에서 가져오세요</p>
+      <div className="text-center py-16 text-gray-400 space-y-3">
+        <p className="text-3xl">{syncStatus === 'error' ? '⚠️' : '📋'}</p>
+        <p className="text-sm font-medium">
+          {syncStatus === 'error' ? '구글시트 연결에 실패했어요' : '일정 데이터가 없어요'}
+        </p>
+        <p className="text-xs text-gray-300">
+          {syncStatus === 'error' ? '네트워크 또는 시트 권한을 확인해 주세요' : '구글시트 \'모든일정\' 탭을 확인해 주세요'}
+        </p>
+        <button
+          onClick={handleRetry}
+          disabled={isSyncing}
+          className="mt-2 flex items-center gap-1.5 mx-auto px-4 py-2 rounded-full bg-slate-800 text-white text-sm font-medium hover:bg-slate-700 disabled:opacity-40 transition-colors"
+        >
+          <svg className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.01M20 20v-5h-.01M4 9a9 9 0 0115-4.47M20 15a9 9 0 01-15 4.47" />
+          </svg>
+          다시 불러오기
+        </button>
       </div>
     );
   }

@@ -14,7 +14,7 @@ import type {
   LocalTour,
   ScheduleRow,
 } from '../types';
-import { defaultTripData, autoAssignAccommodations } from '../data/defaultTripData';
+import { defaultTripData } from '../data/defaultTripData';
 
 const STORAGE_KEY = 'italy_trip_data';
 
@@ -29,7 +29,7 @@ function loadData(): TripData {
     if (!parsed.checklist) parsed.checklist = [];
     if (!parsed.transport) parsed.transport = [];
     if (!parsed.memos) parsed.memos = [];
-    if (!parsed.localTours) parsed.localTours = defaultData.localTours;
+    if (!parsed.localTours) parsed.localTours = [];
     if (!parsed.scheduleRows) parsed.scheduleRows = [];
     if (!parsed.expenseRows) parsed.expenseRows = [];
     // Migrate old flight format
@@ -38,16 +38,6 @@ function loadData(): TripData {
     }
     // Migrate old destinations to remove
     delete parsed.destinations;
-
-    // 숙소 데이터 마이그레이션: 기본 숙소 ID가 하나라도 없으면 재설정 후 날짜 기반 자동배정
-    const defaultAccIds = defaultData.accommodations.map((a) => a.id);
-    const hasAllDefaults = defaultAccIds.every((id: string) =>
-      parsed.accommodations.some((a: AccommodationCandidate) => a.id === id)
-    );
-    if (!hasAllDefaults) {
-      parsed.accommodations = defaultData.accommodations;
-      parsed.days = autoAssignAccommodations(parsed.days, parsed.accommodations);
-    }
 
     return parsed;
   }

@@ -1,9 +1,8 @@
 import {
   SHEET_URL_EVENT,
   getScriptUrl,
-  readSheet,
+  readSheetDirect,
   syncSheet,
-  accommodationsToSheetData,
   sheetDataToAccommodations,
   sheetDataToAllSchedule,
   allScheduleToSheetData,
@@ -20,44 +19,60 @@ let isHydrating = false;
 let isExporting = false;
 let pendingExport = false;
 
+// ── 동기화 상태 ──
+export type SyncStatus = 'idle' | 'syncing' | 'error' | 'done';
+let currentSyncStatus: SyncStatus = 'idle';
+
+function emitSyncStatus(status: SyncStatus) {
+  currentSyncStatus = status;
+  window.dispatchEvent(new CustomEvent('sheetSyncStatus', { detail: status }));
+}
+
+export function getSyncStatus(): SyncStatus {
+  return currentSyncStatus;
+}
+
 function hasScriptUrl() {
   return !!getScriptUrl();
 }
 
-async function safeRead(sheet: string) {
-  try {
-    return await readSheet(sheet);
-  } catch (error) {
-    console.warn(`[SheetSync] ${sheet} 읽기 실패`, error);
-    return [] as Record<string, string>[];
-  }
-}
-
 async function hydrateFromSheets() {
-  if (!hasScriptUrl() || isHydrating) return false;
+  if (isHydrating) return false;
   isHydrating = true;
+  emitSyncStatus('syncing');
   try {
-    // 3탭만 읽기: 숙소, 모든일정, 비용정리
-    const [accomRows, allScheduleRows, expenseRows] = await Promise.all([
-      safeRead('숙소'),
-      safeRead('모든일정'),
-      safeRead('비용정리'),
+    // 구글시트 직접 읽기 (gviz API) — Apps Script 불필요
+    // "모든일정" 탭명이 다를 경우 "일자별"도 시도
+    const results = await Promise.allSettled([
+      readSheetDirect('숙소'),
+      readSheetDirect('모든일정').catch(() => readSheetDirect('일자별')),
+      readSheetDirect('비용정리'),
     ]);
+
+    const accomRows    = results[0].status === 'fulfilled' ? results[0].value : [];
+    const scheduleRows = results[1].status === 'fulfilled' ? results[1].value : [];
+    const expenseRows  = results[2].status === 'fulfilled' ? results[2].value : [];
+
+    // 전부 실패한 경우
+    const allFailed = results.every(r => r.status === 'rejected');
+    if (allFailed) {
+      const reason = results[0].status === 'rejected' ? results[0].reason : undefined;
+      throw reason ?? new Error('시트 읽기 실패');
+    }
 
     const current = loadTripData();
     const next: TripData = { ...current };
     let changed = false;
 
-    if (accomRows.length > 0 || current.accommodations.length === 0) {
+    if (accomRows.length > 0) {
       next.accommodations = sheetDataToAccommodations(accomRows);
-      changed = changed || accomRows.length > 0;
+      changed = true;
     }
 
-    if (allScheduleRows.length > 0) {
-      const sheetRows = sheetDataToAllSchedule(allScheduleRows);
-      // 편집 가능한 필드는 로컬 값 유지, 고정 필드는 시트 값으로 업데이트
+    if (scheduleRows.length > 0) {
+      const sheetParsed = sheetDataToAllSchedule(scheduleRows);
       const localRows = current.scheduleRows || [];
-      next.scheduleRows = sheetRows.map(sr => {
+      next.scheduleRows = sheetParsed.map(sr => {
         const local = localRows.find(l => l.id === sr.id);
         if (local) {
           return {
@@ -78,11 +93,13 @@ async function hydrateFromSheets() {
       changed = true;
     }
 
-    if (changed) {
-      saveTripData(next);
-    }
-
+    if (changed) saveTripData(next);
+    emitSyncStatus('done');
     return changed;
+  } catch (error) {
+    console.error('[SheetSync] 동기화 실패:', error);
+    emitSyncStatus('error');
+    return false;
   } finally {
     isHydrating = false;
   }
@@ -90,29 +107,17 @@ async function hydrateFromSheets() {
 
 async function exportAllToSheets() {
   if (!hasScriptUrl()) return;
-  if (isHydrating) {
-    pendingExport = true;
-    return;
-  }
-  if (isExporting) {
-    pendingExport = true;
-    return;
-  }
+  if (isHydrating) { pendingExport = true; return; }
+  if (isExporting) { pendingExport = true; return; }
   isExporting = true;
   try {
     const data = loadTripData();
-
-    // 숙소 탭: 앱 → 시트
-    const accommodations = accommodationsToSheetData(data.accommodations);
-    await syncSheet('숙소', accommodations.headers, accommodations.rows);
-
-    // 모든일정 탭: 편집 가능한 필드(주요일정·이동계획·준비할것·메모) 반영
     if (data.scheduleRows && data.scheduleRows.length > 0) {
       const schedule = allScheduleToSheetData(data.scheduleRows);
       await syncSheet('모든일정', schedule.headers, schedule.rows);
     }
   } catch (error) {
-    console.warn('[SheetSync] 자동 내보내기 실패', error);
+    console.warn('[SheetSync] 내보내기 실패:', error);
   } finally {
     isExporting = false;
     if (pendingExport) {
@@ -124,9 +129,7 @@ async function exportAllToSheets() {
 
 function scheduleAutoExport() {
   if (!hasScriptUrl() || isHydrating) return;
-  if (debounceId) {
-    window.clearTimeout(debounceId);
-  }
+  if (debounceId) window.clearTimeout(debounceId);
   debounceId = window.setTimeout(() => {
     debounceId = null;
     void exportAllToSheets();
@@ -145,9 +148,7 @@ function handleScriptUrlChange() {
 }
 
 export function initAutoSheetSync() {
-  if (typeof window === 'undefined' || initialized) {
-    return () => {};
-  }
+  if (typeof window === 'undefined' || initialized) return () => {};
   initialized = true;
 
   const localChangeHandler = () => handleLocalChange();
@@ -156,12 +157,11 @@ export function initAutoSheetSync() {
   window.addEventListener('tripDataChanged', localChangeHandler);
   window.addEventListener(SHEET_URL_EVENT, urlChangeHandler);
 
-  if (hasScriptUrl()) {
-    void hydrateFromSheets();
-    scheduleAutoExport();
-  }
+  // 읽기는 gviz API로 직접 접근 (Apps Script 불필요)
+  void hydrateFromSheets();
 
   return () => {
+    initialized = false;
     window.removeEventListener('tripDataChanged', localChangeHandler);
     window.removeEventListener(SHEET_URL_EVENT, urlChangeHandler);
     if (debounceId) {
@@ -171,10 +171,11 @@ export function initAutoSheetSync() {
   };
 }
 
-export async function forceExportNow() {
-  await exportAllToSheets();
+/** 외부에서 강제 동기화 트리거 */
+export async function triggerSync() {
+  return hydrateFromSheets();
 }
 
-export async function forceHydrateNow() {
-  await hydrateFromSheets();
+export async function forceExportNow() {
+  await exportAllToSheets();
 }

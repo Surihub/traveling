@@ -1,19 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useTrip, useDays, useAccommodations } from '../hooks/useTrip';
-import type { Day } from '../types';
-import { DayDetail } from './DayDetail';
-import { AllScheduleBoard } from './AllScheduleBoard';
-import type { ScheduleView } from './AllScheduleBoard';
-import { AccommodationBoard } from './AccommodationBoard';
-import { ShoppingBoard } from './ShoppingBoard';
-import { TransportBoard } from './TransportBoard';
-import { MemoBoard } from './MemoBoard';
-import { LocalTourBoard } from './LocalTourBoard';
+import { useState, useEffect } from 'react';
+import { useTrip } from '../hooks/useTrip';
 import { ItalianHelper } from './ItalianHelper';
 import { CurrencyCalculator } from './CurrencyCalculator';
 
-type MainTab = 'travel' | 'schedule' | 'italian' | 'currency';
-type TravelSubTab = 'daily' | 'all-schedule' | 'transport' | 'accommodation' | 'shopping' | 'localtour' | 'memo';
+type MainTab = 'currency' | 'italian' | 'emergency';
 
 interface DashboardProps {
   canEdit: boolean;
@@ -21,50 +11,71 @@ interface DashboardProps {
   onLogout: () => void;
   getRemainingTime: () => number;
 }
+// ── 긴급 연락처 ──
+const EMERGENCY_CONTACTS = [
+  { emoji: '🚨', name: '긴급구조 / 경찰', number: '112', tel: 'tel:112' },
+  { emoji: '🚑', name: '앰뷸런스', number: '118', tel: 'tel:118' },
+  { emoji: '🔥', name: '소방서', number: '115', tel: 'tel:115' },
+  {
+    emoji: '🏛️',
+    name: '한국 대사관 (대표)',
+    number: '+39-06-420-402-1',
+    tel: 'tel:+390642040221',
+    description: '근무시간 내 · 월-금 09:30-12:00, 14:00-16:30',
+    mapsUrl: 'https://maps.app.goo.gl/tWvqXsMzDNe325wf8',
+    websiteUrl: 'https://it.mofa.go.kr/it-ko/index.do',
+  },
+  { emoji: '🆘', name: '대사관 긴급전화', number: '+39-335-185-0499', tel: 'tel:+393351850499', description: '근무시간 외 긴급 시' },
+  { emoji: '🌐', name: '영사안전콜센터', number: '+82-2-3210-0404', tel: 'tel:+82232100404', description: '사건사고 · 24시간 운영' },
+  { emoji: '💳', name: 'KB국민카드', number: '+82-2-6300-7300', tel: 'tel:+82263007300' },
+  { emoji: '💳', name: '신한카드', number: '+82-2-3420-7000', tel: 'tel:+82234207000' },
+  { emoji: '💳', name: '우리카드', number: '+82-2-6958-9000', tel: 'tel:+82269589000' },
+  { emoji: '💳', name: '하나카드', number: '+82-1800-1111', tel: 'tel:+8218001111' },
+  { emoji: '💳', name: '현대카드', number: '+82-2-3015-9000', tel: 'tel:+82230159000' },
+  { emoji: '💳', name: '씨티카드', number: '+82-2-2004-1004', tel: 'tel:+82220041004' },
+  { 
+    emoji: '👛', 
+    name: '트래블월렛', 
+    number: '앱/이메일 신고', 
+    tel: 'mailto:support@travel-wallet.com',
+    description: '앱(마이 > 카드 관리)에서 즉시 정지 가능.'
+  },
+];
+
+// ── 시간 포맷 헬퍼 ──
+function formatClock(date: Date, tz: string) {
+  const time = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).format(date);
+  const dateStr = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: tz, month: 'numeric', day: 'numeric', weekday: 'short',
+  }).format(date);
+  return { time, date: dateStr };
+}
+
+const MAIN_TABS: { key: MainTab; label: string; emoji: string }[] = [
+  { key: 'currency', label: '환율', emoji: '💶' },
+  { key: 'italian', label: '이탈리아어', emoji: '🇮🇹' },
+  { key: 'emergency', label: '긴급연락처', emoji: '🆘' },
+];
 
 export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }: DashboardProps) {
-  const { trip, loading: tripLoading } = useTrip();
-  const { days, loading: daysLoading, addDay, updateDay, deleteDay } = useDays();
-  const { items: accommodations, loading: accommodationsLoading } = useAccommodations();
-  const [selectedDay, setSelectedDay] = useState<{ day: Day } | null>(null);
-  const [showAddDay, setShowAddDay] = useState(false);
-  const [newDayDate, setNewDayDate] = useState('');
-  const [newDayCity, setNewDayCity] = useState('');
+  const { trip } = useTrip();
+  const [mainTab, setMainTab] = useState<MainTab>('currency');
   const [remainingTime, setRemainingTime] = useState(0);
-  const [mainTab, setMainTab] = useState<MainTab | null>(null);
-  const [travelSubTab, setTravelSubTab] = useState<TravelSubTab>('daily');
-  const [scheduleView, setScheduleView] = useState<ScheduleView>('daily');
-  const [highlightAccom, setHighlightAccom] = useState<string | undefined>();
 
-  const sortedDays = useMemo(() => {
-    return [...days].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [days]);
-
-  const cityColorPalette = [
-    { card: 'bg-gradient-to-r from-sky-50 to-sky-100 border-sky-200', badge: 'bg-sky-100 text-sky-700', accent: 'text-sky-600' },
-    { card: 'bg-gradient-to-r from-rose-50 to-rose-100 border-rose-200', badge: 'bg-rose-100 text-rose-700', accent: 'text-rose-600' },
-    { card: 'bg-gradient-to-r from-emerald-50 to-emerald-100 border-emerald-200', badge: 'bg-emerald-100 text-emerald-700', accent: 'text-emerald-600' },
-    { card: 'bg-gradient-to-r from-amber-50 to-amber-100 border-amber-200', badge: 'bg-amber-100 text-amber-700', accent: 'text-amber-600' },
-    { card: 'bg-gradient-to-r from-indigo-50 to-indigo-100 border-indigo-200', badge: 'bg-indigo-100 text-indigo-700', accent: 'text-indigo-600' },
-    { card: 'bg-gradient-to-r from-teal-50 to-teal-100 border-teal-200', badge: 'bg-teal-100 text-teal-700', accent: 'text-teal-600' },
-  ];
-
-  const cityColorMap = useMemo(() => {
-    const map = new Map<string, (typeof cityColorPalette)[number]>();
-    sortedDays.forEach((day) => {
-      const key = day.city?.trim() || '기타';
-      if (!map.has(key)) {
-        map.set(key, cityColorPalette[map.size % cityColorPalette.length]);
-      }
-    });
-    return map;
-  }, [sortedDays]);
+  // 실시간 시계
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const italy = formatClock(now, 'Europe/Rome');
+  const korea = formatClock(now, 'Asia/Seoul');
 
   useEffect(() => {
     if (canEdit) {
-      const interval = setInterval(() => {
-        setRemainingTime(getRemainingTime());
-      }, 1000);
+      const interval = setInterval(() => setRemainingTime(getRemainingTime()), 1000);
       setRemainingTime(getRemainingTime());
       return () => clearInterval(interval);
     }
@@ -82,73 +93,49 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
     today.setHours(0, 0, 0, 0);
     const startDate = new Date(trip.startDate);
     startDate.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    return diff;
+    return Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
-
   const dDay = calculateDDay();
 
-  const handleAddDay = async () => {
-    if (newDayDate && newDayCity) {
-      await addDay(newDayDate, newDayCity);
-      setNewDayDate('');
-      setNewDayCity('');
-      setShowAddDay(false);
-    }
-  };
-
-  const handleDeleteDay = async (dayId: string) => {
-    if (window.confirm('이 날짜의 모든 일정이 삭제됩니다. 계속하시겠습니까?')) {
-      await deleteDay(dayId);
-    }
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-    return `${date.getMonth() + 1}월 ${date.getDate()}일 (${weekdays[date.getDay()]})`;
-  };
-
-
-  const mainTabs: { key: MainTab; label: string; emoji: string }[] = [
-    { key: 'schedule', label: '일정', emoji: '📋' },
-    { key: 'italian', label: '이탈리아어', emoji: '🇮🇹' },
-    { key: 'currency', label: '환율', emoji: '💶' },
-  ];
-
-  const travelSubTabs: { key: TravelSubTab; label: string }[] = [
-    { key: 'daily', label: '일자별로 보기' },
-    { key: 'all-schedule', label: '모든일정' },
-    { key: 'transport', label: '교통' },
-    { key: 'accommodation', label: '숙소' },
-    { key: 'shopping', label: '쇼핑' },
-    { key: 'localtour', label: '현지투어' },
-    { key: 'memo', label: '메모' },
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* ── Header ── */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm">
+        {/* 실시간 시차 바 */}
+        <div className="bg-slate-800 text-white">
+          <div className="max-w-2xl mx-auto px-4 py-2 flex items-center justify-center gap-6">
+            <div className="flex flex-col items-center leading-tight">
+              <span className="text-[10px] text-slate-400 font-medium">🇮🇹 이탈리아</span>
+              <span className="text-lg font-bold tabular-nums tracking-tight">{italy.time}</span>
+              <span className="text-[10px] text-slate-400">{italy.date}</span>
+            </div>
+            <div className="flex flex-col items-center text-slate-500">
+              <span className="text-xs font-medium">시차</span>
+              <span className="text-sm font-bold text-slate-300">-8h</span>
+            </div>
+            <div className="flex flex-col items-center leading-tight">
+              <span className="text-[10px] text-slate-400 font-medium">🇰🇷 한국</span>
+              <span className="text-lg font-bold tabular-nums tracking-tight">{korea.time}</span>
+              <span className="text-[10px] text-slate-400">{korea.date}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 앱 타이틀 + 컨트롤 */}
         <div className="max-w-2xl mx-auto px-4">
-          {/* 상단: 앱 이름 + 컨트롤 */}
-          <div className="flex items-center justify-between py-3">
-            <button
-              onClick={() => setMainTab(null)}
-              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity text-left"
-            >
-              {/* 이탈리아 국기 */}
-              <div className="flex h-6 w-9 overflow-hidden rounded-sm shadow-sm flex-shrink-0">
+          <div className="flex items-center justify-between py-2">
+            <div className="flex items-center gap-2">
+              <div className="flex h-5 w-8 overflow-hidden rounded-sm shadow-sm flex-shrink-0">
                 <div className="flex-1 bg-[#009246]" />
                 <div className="flex-1 bg-white" />
                 <div className="flex-1 bg-[#ce2b37]" />
               </div>
               <div>
-                <h1 className="text-base font-bold text-gray-900 leading-tight">
+                <h1 className="text-sm font-bold text-gray-900 leading-tight">
                   {trip?.title || '수빈이네 in Italy'}
                 </h1>
                 {dDay !== null && (
-                  <p className="text-xs text-gray-400 leading-tight">
+                  <p className="text-xs leading-tight">
                     {dDay > 0
                       ? <span className="text-rose-500 font-semibold">D-{dDay}</span>
                       : dDay === 0
@@ -162,358 +149,135 @@ export function Dashboard({ canEdit, onRequestEdit, onLogout, getRemainingTime }
                   </p>
                 )}
               </div>
-            </button>
+            </div>
             <div className="flex items-center gap-1.5">
-              {canEdit && (
+              <a
+                href="https://docs.google.com/spreadsheets/d/1wPtSsr8AKYPM9kDSRGBWR18FpfClp3jVSwaiC1YpeN4/edit?gid=996931468#gid=996931468"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-full hover:bg-gray-100"
+              >
+                시트
+              </a>
+              {canEdit ? (
                 <>
                   <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full font-medium">
                     🔓 {formatRemainingTime(remainingTime)}
                   </span>
-                  <button
-                    onClick={onLogout}
-                    className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-full hover:bg-gray-100"
-                  >
+                  <button onClick={onLogout} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-full hover:bg-gray-100">
                     잠금
                   </button>
                 </>
+              ) : (
+                <button
+                  onClick={onRequestEdit}
+                  className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-full hover:bg-gray-100"
+                >
+                  편집
+                </button>
               )}
             </div>
           </div>
 
-          {/* 메인 탭 — 홈에서는 숨김 */}
-          {mainTab !== null && (
-            <div className="flex gap-0">
-              {mainTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setMainTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-all border-b-2 ${
-                    mainTab === tab.key
-                      ? 'border-slate-700 text-slate-800'
-                      : 'border-transparent text-gray-400 hover:text-gray-600'
-                  }`}
-                >
-                  <span className="text-base">{tab.emoji}</span>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          {/* 메인 탭 */}
+          <div className="flex gap-0">
+            {MAIN_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setMainTab(tab.key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-all border-b-2 ${
+                  mainTab === tab.key
+                    ? 'border-slate-700 text-slate-800'
+                    : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                <span>{tab.emoji}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-<main className={`max-w-2xl mx-auto px-4${mainTab === null ? '' : ' py-5'}`}>
-        {/* 홈 화면 */}
-        {mainTab === null && (
-          <div className="flex flex-col" style={{ minHeight: 'calc(100dvh - 57px)' }}>
-            <div className="flex flex-col items-center pt-5 pb-4">
-              <div className="flex h-10 w-16 overflow-hidden rounded-md shadow mb-3">
-                <div className="flex-1 bg-[#009246]" />
-                <div className="flex-1 bg-white" />
-                <div className="flex-1 bg-[#ce2b37]" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">{trip?.title || '수빈이네 in Italy'}</h2>
-              {dDay !== null && (
-                <p className="text-sm text-gray-400">
-                  {dDay > 0
-                    ? <span className="text-rose-500 font-semibold">D-{dDay}</span>
-                    : dDay === 0
-                      ? <span className="text-rose-600 font-bold">D-Day! 🎉</span>
-                      : <span>D+{Math.abs(dDay)}</span>}
-                  {trip?.startDate && trip?.endDate && (
-                    <span className="ml-1.5">{trip.startDate.replace(/-/g, '.')} ~ {trip.endDate.replace(/-/g, '.')}</span>
-                  )}
-                </p>
-              )}
+      {/* ── 콘텐츠 ── */}
+      <main className="flex-1 max-w-2xl mx-auto w-full overflow-y-auto">
+        {mainTab === 'currency' && (
+          <div className="px-4">
+            <div className="pt-4 flex justify-end">
+              <a
+                href="https://g.co/finance/EUR-KRW"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                구글 EUR/KRW 환율 보기
+              </a>
             </div>
-            <div className="flex flex-col gap-3 flex-1 pb-4">
-              {[
-                { key: 'schedule' as MainTab, emoji: '📋', label: '일정', desc: '날짜별 전체 여행 일정 보기' },
-                { key: 'italian' as MainTab, emoji: '🇮🇹', label: '이탈리아어', desc: '여행에 필요한 표현 모음' },
-                { key: 'currency' as MainTab, emoji: '💶', label: '환율', desc: '유로 ↔ 원화 빠른 계산' },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setMainTab(item.key)}
-                  className="flex-1 w-full flex flex-col items-center justify-center gap-3 bg-white rounded-2xl shadow-sm hover:shadow-md hover:bg-gray-50 active:scale-[0.98] transition-all"
-                >
-                  <span className="text-6xl leading-none">{item.emoji}</span>
-                  <div className="text-center">
-                    <p className="text-3xl font-bold text-gray-900">{item.label}</p>
-                    <p className="text-base text-gray-400 mt-1">{item.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <CurrencyCalculator />
           </div>
         )}
 
-        {/* 일정 탭 */}
-        {mainTab === 'schedule' && (
-          <div className="py-5">
-            {/* 서브탭 + 편집 버튼 */}
-            <div className="flex items-center gap-2 mb-5">
-              <div className="flex gap-2 flex-1">
-                {([
-                  { key: 'daily' as ScheduleView, label: '일자별로 보기' },
-                  { key: 'accommodation' as ScheduleView, label: '숙소만 보기' },
-                  { key: 'transport' as ScheduleView, label: '교통만 보기' },
-                ] as { key: ScheduleView; label: string }[]).map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => { setScheduleView(tab.key); setHighlightAccom(undefined); }}
-                    className={`flex-1 py-2 rounded-full text-sm font-medium transition-all ${
-                      scheduleView === tab.key
-                        ? 'bg-slate-800 text-white shadow-sm'
-                        : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              {!canEdit && (
-                <button
-                  onClick={onRequestEdit}
-                  className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  편집
-                </button>
-              )}
-            </div>
-            <AllScheduleBoard
-              canEdit={canEdit}
-              view={scheduleView}
-              highlightAccom={highlightAccom}
-              onAccomClick={(name) => {
-                setHighlightAccom(name);
-                setScheduleView('accommodation');
-              }}
-            />
-          </div>
-        )}
-
-        {/* 이탈리아어 탭 */}
         {mainTab === 'italian' && <ItalianHelper />}
 
-        {/* 환율 탭 */}
-        {mainTab === 'currency' && <CurrencyCalculator />}
-
-        {/* 여행관리 탭 (임시 숨김) */}
-        {mainTab === 'travel' && (
-        tripLoading || daysLoading || accommodationsLoading ? (
-          <div className="text-center py-8 text-gray-500">로딩 중...</div>
-        ) : (
-          <>
-            {/* 서브 탭 + 편집 버튼 */}
-            <div className="flex items-center gap-2 mb-5">
-              <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none flex-1">
-                {travelSubTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setTravelSubTab(tab.key)}
-                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
-                      travelSubTab === tab.key
-                        ? 'bg-slate-800 text-white shadow-sm'
-                        : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-              {!canEdit && (
-                <button
-                  onClick={onRequestEdit}
-                  className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
+        {mainTab === 'emergency' && (
+          <div className="px-4 py-5 space-y-3">
+            <p className="text-xs text-gray-400 text-center">번호를 누르면 바로 전화할 수 있어요</p>
+            {EMERGENCY_CONTACTS.map((c) => (
+              <div key={c.name} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                <a
+                  href={c.tel}
+                  className="flex items-center gap-4 px-5 py-4 hover:bg-rose-50 active:scale-[0.98] transition-all"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  편집
-                </button>
-              )}
-            </div>
-
-            {/* 일자별로 보기 탭 */}
-            {travelSubTab === 'daily' && (
-              <>
-                <div className="space-y-4">
-                  {sortedDays.map((day, index) => {
-                    const color = cityColorMap.get(day.city?.trim() || '기타') || cityColorPalette[0];
-                    const assigned = accommodations.find((acc) => acc.id === day.accommodationId);
-                    // 숙소는 체크인 날짜에만 표시
-                    const isCheckInDay = assigned ? assigned.checkIn === day.date : !!day.accommodationName;
-                    const fallbackAccommodation = (isCheckInDay && day.accommodationName)
-                      ? {
-                          name: day.accommodationName,
-                          address: day.accommodationAddress,
-                        }
-                      : undefined;
-                    const showAccommodation = isCheckInDay && (assigned || fallbackAccommodation);
-                    return (
-                      <div
-                        key={day.id}
-                        className={`rounded-2xl border shadow-sm hover:shadow-lg transition-shadow ${color.card}`}
-                      >
-                        <div
-                          onClick={() => setSelectedDay({ day })}
-                          className="p-4 cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${color.badge}`}>
-                                  {day.city}
-                                </span>
-                                <span className="text-xs text-gray-400">Day {index + 1}</span>
-                                <span className="text-gray-300">•</span>
-                                <span className="text-sm text-gray-600">{formatDate(day.date)}</span>
-                              </div>
-                              <h3 className="text-lg font-bold text-gray-800">
-                                {day.items[0]?.title || '세부 일정 확인'}
-                              </h3>
-                              <div className="space-y-1 mt-1">
-                                {day.items.length > 0 && (
-                                  <p className="text-xs text-gray-600">
-                                    {day.items.length}개 일정 · 마지막 일정 {day.items[day.items.length - 1].title}
-                                  </p>
-                                )}
-                                {showAccommodation && (
-                                  <p className="text-xs text-gray-600 flex items-center gap-1">
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c1.38 0 2.5-1.12 2.5-2.5S13.38 6 12 6s-2.5 1.12-2.5 2.5S10.62 11 12 11zm0 0c2.485 0 4.5 2.015 4.5 4.5S12 21 12 21s-4.5-3.015-4.5-5.5S9.515 11 12 11z" />
-                                    </svg>
-                                    체크인 · {assigned?.name || fallbackAccommodation?.name}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {canEdit && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteDay(day.id);
-                                  }}
-                                  className="p-2 text-gray-400 hover:text-red-500 hover:bg-white/50 rounded-lg"
-                                >
-                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              )}
-                              <svg className={`w-5 h-5 ${color.accent}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {canEdit && (
-                  showAddDay ? (
-                    <div className="mt-4 bg-white rounded-xl shadow-md p-4">
-                      <h3 className="font-medium text-gray-800 mb-3">새 날짜 추가</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-sm text-gray-600 mb-1">날짜</label>
-                          <input
-                            type="date"
-                            value={newDayDate}
-                            onChange={(e) => setNewDayDate(e.target.value)}
-                            className="w-full border rounded-lg px-3 py-2"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-600 mb-1">도시</label>
-                          <input
-                            type="text"
-                            value={newDayCity}
-                            onChange={(e) => setNewDayCity(e.target.value)}
-                            placeholder="예: 로마, 피렌체, 베네치아"
-                            className="w-full border rounded-lg px-3 py-2"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleAddDay}
-                            disabled={!newDayDate || !newDayCity}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-                          >
-                            추가
-                          </button>
-                          <button
-                            onClick={() => setShowAddDay(false)}
-                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-                          >
-                            취소
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowAddDay(true)}
-                      className="w-full mt-4 py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      새 날짜 추가
-                    </button>
-                  )
-                )}
-
-                {sortedDays.length === 0 && !canEdit && (
-                  <div className="text-center py-12 text-gray-500">
-                    <p>등록된 일정이 없습니다</p>
+                  <span className="text-4xl flex-shrink-0">{c.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">{c.name}</p>
+                    <p className="text-xl font-bold text-rose-600 mt-0.5">{c.number}</p>
+                    {'description' in c && c.description && (
+                      <p className="text-xs text-gray-400 mt-1 leading-snug">{c.description}</p>
+                    )}
                   </div>
+                  <div className="flex-shrink-0 text-rose-400">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                </a>
+                {'websiteUrl' in c && c.websiteUrl && (
+                  <a
+                    href={c.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-gray-50 border-t border-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-100 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                    대사관 홈페이지 바로가기
+                  </a>
                 )}
-              </>
-            )}
-
-            {/* 모든일정 tab */}
-            {travelSubTab === 'all-schedule' && <AllScheduleBoard canEdit={canEdit} />}
-
-            {/* 교통 tab */}
-            {travelSubTab === 'transport' && <TransportBoard canEdit={canEdit} />}
-
-            {/* 숙소 tab */}
-            {travelSubTab === 'accommodation' && <AccommodationBoard canEdit={canEdit} />}
-
-            {/* 쇼핑 tab */}
-            {travelSubTab === 'shopping' && <ShoppingBoard canEdit={canEdit} />}
-
-            {/* 현지투어 tab */}
-            {travelSubTab === 'localtour' && <LocalTourBoard canEdit={canEdit} />}
-
-            {/* 메모 tab */}
-            {travelSubTab === 'memo' && <MemoBoard canEdit={canEdit} />}
-
-          </>
-        )
+                {'mapsUrl' in c && c.mapsUrl && (
+                  <a
+                    href={c.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-50 border-t border-blue-100 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    구글 지도에서 위치 보기
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </main>
-
-      {/* Day detail — 전체화면 */}
-      {selectedDay && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-50">
-          <DayDetail
-            day={selectedDay.day}
-            onBack={() => setSelectedDay(null)}
-            onUpdateDay={updateDay}
-            canEdit={canEdit}
-            accommodations={accommodations}
-          />
-        </div>
-      )}
     </div>
   );
 }
